@@ -1,0 +1,26 @@
+{
+  "name": "cerocontacto",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Formulario web + middleware de integracion SAP C4C para altas de instalacion SOLE/Rinnai",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0",
+    "vitest": "^2.1.4",
+    "eslint": "^9.14.0",
+    "typescript-eslint": "^8.13.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

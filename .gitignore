@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+out/
+coverage/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+local.settings.json
+.azure/
+.vscode/
+*.tsbuildinfo

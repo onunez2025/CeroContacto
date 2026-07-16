@@ -1,0 +1,79 @@
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockOrchestration } = vi.hoisted(() => ({ mockOrchestration: vi.fn() }));
+
+vi.mock("./orchestrators/serviceRequestOrchestrator.js", () => ({
+  runServiceRequestOrchestration: mockOrchestration,
+}));
+
+vi.mock("./infra/auditLog.js", () => ({
+  recordSubmission: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { createApp } from "./app.js";
+
+const direccion = {
+  departamento: "15",
+  provincia: "128",
+  distrito: "1260",
+  codigoPostal: "15314",
+  direccion: "AV. EL SOL",
+  numero: "555",
+  referencia: "Frente al parque",
+};
+
+const validBody = {
+  tipoDocumento: "DNI",
+  numeroDocumento: "15619884",
+  nombres: "ALVARO MIGUEL",
+  apellidos: "SEBASTIANI RUBIO",
+  telefono: "+51942568111",
+  email: "cliente@example.com",
+  direccion,
+  productos: [{ numeroSerie: "TDM5524083854", productId: "10054511" }],
+  fechaVisita: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+  medioContacto: "whatsapp",
+  lugarCompra: "SODIMAC PERU S.A.",
+  consentimiento: true,
+  captchaToken: "token-123",
+};
+
+describe("createApp", () => {
+  const envBackup = { ...process.env };
+
+  beforeEach(() => {
+    process.env.C4C_BASE_URL = "https://qa.example.com/sap/c4c/odata";
+    process.env.C4C_USER = "_SYSODATA";
+    process.env.C4C_PASSWORD = "secret";
+  });
+
+  afterEach(() => {
+    process.env = { ...envBackup };
+    mockOrchestration.mockReset();
+  });
+
+  it("GET /health devuelve 200", async () => {
+    const res = await request(createApp()).get("/health");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok" });
+  });
+
+  it("POST /api/service-requests con JSON malformado devuelve 400", async () => {
+    const res = await request(createApp())
+      .post("/api/service-requests")
+      .set("Content-Type", "application/json")
+      .send("{esto no es json");
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "Cuerpo JSON invalido" });
+  });
+
+  it("POST /api/service-requests feliz devuelve 201 con ticketIds", async () => {
+    mockOrchestration.mockResolvedValue({ status: "Completed", ticketIds: ["138401"] });
+
+    const res = await request(createApp()).post("/api/service-requests").send(validBody);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ status: "Completed", ticketIds: ["138401"] });
+  });
+});

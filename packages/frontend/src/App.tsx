@@ -4,6 +4,8 @@ import { ServiceRequestSubmissionSchema } from "@cerocontacto/shared";
 import { ApiError, submitServiceRequest, type SubmitResult } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
+import { PERU_PROVINCIAS } from "./peruProvincias.js";
+import { PERU_DISTRITOS } from "./peruDistritos.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 
@@ -324,7 +326,13 @@ export default function App() {
 
             <div className="field">
               <label htmlFor="departamento">Departamento</label>
-              <select id="departamento" value={form.departamento} onChange={(e) => update("departamento", e.target.value)}>
+              <select
+                id="departamento"
+                value={form.departamento}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, departamento: e.target.value, provincia: "", distrito: "" }))
+                }
+              >
                 <option value="">Selecciona un departamento</option>
                 {PERU_DEPARTAMENTOS.map((d) => (
                   <option key={d.code} value={d.code}>
@@ -337,20 +345,40 @@ export default function App() {
 
             <div className="field-row">
               <div className="field">
-                <label htmlFor="provincia">Código de provincia (ubigeo)</label>
-                <input id="provincia" type="text" value={form.provincia} onChange={(e) => update("provincia", e.target.value)} />
+                <label htmlFor="provincia">Provincia</label>
+                <select
+                  id="provincia"
+                  value={form.provincia}
+                  disabled={!form.departamento}
+                  onChange={(e) => setForm((prev) => ({ ...prev, provincia: e.target.value, distrito: "" }))}
+                >
+                  <option value="">{form.departamento ? "Selecciona una provincia" : "Primero elige un departamento"}</option>
+                  {PERU_PROVINCIAS.filter((p) => p.departamentoId === form.departamento).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
                 <FieldError message={fieldErrors["direccion.provincia"]} />
               </div>
               <div className="field">
-                <label htmlFor="distrito">Código de distrito (ubigeo)</label>
-                <input id="distrito" type="text" value={form.distrito} onChange={(e) => update("distrito", e.target.value)} />
+                <label htmlFor="distrito">Distrito</label>
+                <select
+                  id="distrito"
+                  value={form.distrito}
+                  disabled={!form.provincia}
+                  onChange={(e) => update("distrito", e.target.value)}
+                >
+                  <option value="">{form.provincia ? "Selecciona un distrito" : "Primero elige una provincia"}</option>
+                  {PERU_DISTRITOS.filter((d) => d.provinciaId === form.provincia).map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nombre}
+                    </option>
+                  ))}
+                </select>
                 <FieldError message={fieldErrors["direccion.distrito"]} />
               </div>
             </div>
-            <p className="hint">
-              Aún no tenemos el selector de provincia/distrito por nombre — ingresa el código de ubigeo mientras se define
-              con el equipo de negocio.
-            </p>
 
             <div className="field">
               <label htmlFor="direccion">Dirección</label>

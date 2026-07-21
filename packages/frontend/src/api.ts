@@ -51,3 +51,17 @@ export async function submitServiceRequest(payload: ServiceRequestSubmission): P
   }
   return { status: "Failed", errorMessage: body?.errorMessage ?? "No pudimos procesar tu solicitud." };
 }
+
+export interface ProductCatalogItem {
+  productId: string;
+  nombre: string;
+}
+
+/** Autocompletado de modelo dentro de una categoria - consulta el catalogo real (C4C produccion, solo lectura). */
+export async function searchProducts(categoriaId: string, query: string): Promise<ProductCatalogItem[]> {
+  const params = new URLSearchParams({ categoria: categoriaId, q: query });
+  const res = await fetch(`/api/productos?${params.toString()}`);
+  if (!res.ok) return [];
+  const body = (await res.json().catch(() => undefined)) as { productos?: ProductCatalogItem[] } | undefined;
+  return body?.productos ?? [];
+}

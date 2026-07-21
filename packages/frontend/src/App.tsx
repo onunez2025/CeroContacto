@@ -2,12 +2,17 @@ import { useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema } from "@cerocontacto/shared";
 import { ApiError, submitServiceRequest, type SubmitResult } from "./api.js";
+import { FieldError } from "./FieldError.js";
 import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
+import { ProductoPicker } from "./ProductoPicker.js";
 
 interface ProductoForm {
   numeroSerie: string;
   productId: string;
+  /** Solo para filtrar la busqueda en el frontend - no se envia al backend. */
+  categoria: string;
+  productNombre: string;
 }
 
 const MAX_PRODUCTOS = 4;
@@ -54,7 +59,7 @@ const initialState: FormState = {
   numero: "",
   referencia: "",
   piso: "",
-  productos: [{ numeroSerie: "", productId: "" }],
+  productos: [{ numeroSerie: "", productId: "", categoria: "", productNombre: "" }],
   fechaVisita: "",
   comentario: "",
   medioContacto: "whatsapp",
@@ -118,10 +123,10 @@ export default function App() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateProducto(index: number, field: keyof ProductoForm, value: string) {
+  function patchProducto(index: number, patch: Partial<ProductoForm>) {
     setForm((prev) => ({
       ...prev,
-      productos: prev.productos.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
+      productos: prev.productos.map((p, i) => (i === index ? { ...p, ...patch } : p)),
     }));
   }
 
@@ -129,7 +134,7 @@ export default function App() {
     setForm((prev) =>
       prev.productos.length >= MAX_PRODUCTOS
         ? prev
-        : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "" }] },
+        : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "", categoria: "", productNombre: "" }] },
     );
   }
 
@@ -392,27 +397,24 @@ export default function App() {
             {form.productos.map((producto, index) => (
               <div className="producto-row" key={index}>
                 <p className="producto-label">{index === 0 ? "Producto principal" : `Producto adicional ${index}`}</p>
-                <div className="field-row">
-                  <div className="field">
-                    <label htmlFor={`numeroSerie-${index}`}>Número de serie</label>
-                    <input
-                      id={`numeroSerie-${index}`}
-                      type="text"
-                      value={producto.numeroSerie}
-                      onChange={(e) => updateProducto(index, "numeroSerie", e.target.value)}
-                    />
-                    <FieldError message={fieldErrors[`productos.${index}.numeroSerie`]} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`productId-${index}`}>Modelo (código de producto)</label>
-                    <input
-                      id={`productId-${index}`}
-                      type="text"
-                      value={producto.productId}
-                      onChange={(e) => updateProducto(index, "productId", e.target.value)}
-                    />
-                    <FieldError message={fieldErrors[`productos.${index}.productId`]} />
-                  </div>
+                <ProductoPicker
+                  idPrefix={`producto-${index}`}
+                  categoria={producto.categoria}
+                  productId={producto.productId}
+                  productNombre={producto.productNombre}
+                  onCategoriaChange={(categoria) => patchProducto(index, { categoria })}
+                  onProductoChange={(productId, productNombre) => patchProducto(index, { productId, productNombre })}
+                  productoError={fieldErrors[`productos.${index}.productId`]}
+                />
+                <div className="field">
+                  <label htmlFor={`numeroSerie-${index}`}>Número de serie</label>
+                  <input
+                    id={`numeroSerie-${index}`}
+                    type="text"
+                    value={producto.numeroSerie}
+                    onChange={(e) => patchProducto(index, { numeroSerie: e.target.value })}
+                  />
+                  <FieldError message={fieldErrors[`productos.${index}.numeroSerie`]} />
                 </div>
                 {form.productos.length > 1 ? (
                   <button type="button" className="btn-link" onClick={() => removeProducto(index)}>
@@ -503,9 +505,4 @@ export default function App() {
       </div>
     </main>
   );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return <p className="field-error">{message}</p>;
 }

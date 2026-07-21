@@ -244,3 +244,61 @@ textarea:focus {
   margin: 0;
   width: auto;
 }
+
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete input {
+  padding-right: 2rem;
+}
+
+.autocomplete-check {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.autocomplete-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px -12px rgba(22, 35, 43, 0.3);
+}
+
+.autocomplete-list li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.autocomplete-list li button:hover,
+.autocomplete-list li button:focus {
+  background: var(--bg-sunken);
+}
+
+.autocomplete-loading {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}

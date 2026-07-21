@@ -20,7 +20,8 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # Sin "ports:" - Dokploy/Traefik ya ocupa 80/443 en el host y enruta por
+    # la red interna de Docker usando el Container Port configurado en la
+    # pestaña Domains (80, el puerto donde escucha nginx dentro del contenedor).
     depends_on:
       - backend

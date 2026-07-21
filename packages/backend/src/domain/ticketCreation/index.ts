@@ -61,6 +61,8 @@ export async function createTicket(
     zaRegionFSM_ID_KUT: input.regionFsmId,
     zaRegionFSM_KUT: input.regionFsm,
     zIDRegistroCupoArea_SDK: input.reservationId,
+    zTicketIDProvinciacontent_SDK: input.provincia,
+    zTicketIDDistritocontent_SDK: input.distrito,
     ServiceRequestItem: [DEFAULT_SERVICE_ITEM],
   });
 

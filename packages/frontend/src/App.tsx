@@ -1,11 +1,11 @@
 import { useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema } from "@cerocontacto/shared";
+import { PERU_DISTRITOS } from "@cerocontacto/shared";
 import { ApiError, submitServiceRequest, type SubmitResult } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { PERU_PROVINCIAS } from "./peruProvincias.js";
-import { PERU_DISTRITOS } from "./peruDistritos.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 

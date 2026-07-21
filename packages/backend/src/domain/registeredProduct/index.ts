@@ -1,5 +1,6 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { eq } from "@cerocontacto/c4c-client";
+import { PERU_DISTRITOS } from "@cerocontacto/shared";
 import type { RegisteredProductInput, RegisteredProductRecord, RegisteredProductResult } from "./types.js";
 
 export * from "./types.js";
@@ -42,6 +43,9 @@ export async function resolveRegisteredProduct(
     ...(input.warrantyId ? { WarrantyID: input.warrantyId } : {}),
     Country: "PE",
     State: input.direccion.departamento,
+    District: PERU_DISTRITOS.find((d) => d.id === input.direccion.distrito)?.nombre ?? "",
+    zIPointIDProvinciacontent_SDK: input.direccion.provincia,
+    zIPointIDDistritocontent_SDK: input.direccion.distrito,
     House: input.direccion.numero,
     Street: input.direccion.direccion,
     AddressLine5: input.direccion.referencia,

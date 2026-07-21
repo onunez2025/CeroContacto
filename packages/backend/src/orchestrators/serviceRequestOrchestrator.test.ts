@@ -79,6 +79,8 @@ describe("runServiceRequestOrchestration", () => {
     expect(ticketBody.InstallationPointID).toBe("420434");
     expect(ticketBody.zIDEmpresa_SDK).toBe("1306EXT-3");
     expect(ticketBody.zIDRegistroCupoArea_SDK).toBe("REG-A");
+    expect(ticketBody.zTicketIDProvinciacontent_SDK).toBe("128");
+    expect(ticketBody.zTicketIDDistritocontent_SDK).toBe("1254");
 
     const noteCall = postEntity.mock.calls.find(([path]) => (path as string).includes("ServiceRequestTextCollection")) as [
       string,

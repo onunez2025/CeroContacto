@@ -121,6 +121,8 @@ export async function runServiceRequestOrchestration(
           regionFsmId: cupo.regionFsmId,
           regionFsm: cupo.regionFsm,
           reservationId: cupo.reservationId,
+          provincia: submission.direccion.provincia,
+          distrito: submission.direccion.distrito,
           comentario: comentarioParaC4C,
         },
         client,

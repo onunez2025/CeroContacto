@@ -54,6 +54,9 @@ describe("resolveRegisteredProduct", () => {
     expect(body.zaIDdeSerieFSM_KUT).toBe("TDM5524083854");
     expect(body.ProductID).toBe("10054511");
     expect(body.RegisteredProductPartyInformation).toEqual([{ RoleCode: "60", PartyID: "1038018" }]);
+    expect(body.District).toBe("BARRANCO");
+    expect(body.zIPointIDProvinciacontent_SDK).toBe("128");
+    expect(body.zIPointIDDistritocontent_SDK).toBe("1254");
   });
 
   it("omite zID_IP_LugarCompra_SDK cuando no se provee (pendiente tabla del proveedor)", async () => {

@@ -16,6 +16,10 @@ export interface TicketCreationInput {
   regionFsm: string;
   /** zIDRegistroCupoArea_SDK - reserva de cupo confirmada por cuposEngine. */
   reservationId: string;
+  /** zTicketIDProvinciacontent_SDK. */
+  provincia: string;
+  /** zTicketIDDistritocontent_SDK. */
+  distrito: string;
   /** ServiceIssueCategoryID - por defecto SERVICE_TYPE_ID (instalacion). */
   serviceIssueCategoryId?: string;
   /**

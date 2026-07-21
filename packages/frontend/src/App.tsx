@@ -26,6 +26,7 @@ interface FormState {
   nombres: string;
   apellidos: string;
   telefono: string;
+  telefono2: string;
   email: string;
   lugarCompra: string;
   departamento: string;
@@ -51,6 +52,7 @@ const initialState: FormState = {
   nombres: "",
   apellidos: "",
   telefono: "",
+  telefono2: "",
   email: "",
   lugarCompra: "",
   departamento: "",
@@ -71,6 +73,7 @@ const initialState: FormState = {
 function buildSubmission(form: FormState): unknown {
   const common = {
     telefono: form.telefono.trim(),
+    ...(form.telefono2.trim() ? { telefono2: form.telefono2.trim() } : {}),
     email: form.email.trim(),
     lugarCompra: form.lugarCompra,
     direccion: {
@@ -289,16 +292,29 @@ export default function App() {
               </>
             )}
 
-            <div className="field">
-              <label htmlFor="telefono">Teléfono de contacto</label>
-              <input
-                id="telefono"
-                type="text"
-                placeholder="+51 9XXXXXXXX"
-                value={form.telefono}
-                onChange={(e) => update("telefono", e.target.value)}
-              />
-              <FieldError message={fieldErrors.telefono} />
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="telefono">Teléfono de contacto (línea 1)</label>
+                <input
+                  id="telefono"
+                  type="text"
+                  placeholder="+51 9XXXXXXXX"
+                  value={form.telefono}
+                  onChange={(e) => update("telefono", e.target.value)}
+                />
+                <FieldError message={fieldErrors.telefono} />
+              </div>
+              <div className="field">
+                <label htmlFor="telefono2">Teléfono de contacto (línea 2, opcional)</label>
+                <input
+                  id="telefono2"
+                  type="text"
+                  placeholder="+51 9XXXXXXXX"
+                  value={form.telefono2}
+                  onChange={(e) => update("telefono2", e.target.value)}
+                />
+                <FieldError message={fieldErrors.telefono2} />
+              </div>
             </div>
 
             <div className="field">

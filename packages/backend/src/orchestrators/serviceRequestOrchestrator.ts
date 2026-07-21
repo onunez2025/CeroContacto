@@ -14,6 +14,8 @@ function toCustomerResolutionInput(submission: ServiceRequestSubmission): Custom
       tipoDocumento: "RUC",
       numeroDocumento: submission.numeroDocumento,
       razonSocial: submission.razonSocial,
+      telefono: submission.telefono,
+      telefono2: submission.telefono2,
       direccion: submission.direccion,
     };
   }
@@ -22,6 +24,8 @@ function toCustomerResolutionInput(submission: ServiceRequestSubmission): Custom
     numeroDocumento: submission.numeroDocumento,
     nombres: submission.nombres,
     apellidos: submission.apellidos,
+    telefono: submission.telefono,
+    telefono2: submission.telefono2,
     direccion: submission.direccion,
   };
 }

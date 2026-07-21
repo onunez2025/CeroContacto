@@ -23,6 +23,8 @@ export interface EmpresaInput {
   tipoDocumento: "RUC";
   numeroDocumento: string;
   razonSocial: string;
+  telefono: string;
+  telefono2?: string;
   direccion: Address;
 }
 
@@ -41,6 +43,8 @@ export interface IndividualInput {
   numeroDocumento: string;
   nombres: string;
   apellidos: string;
+  telefono: string;
+  telefono2?: string;
   direccion: Address;
 }
 

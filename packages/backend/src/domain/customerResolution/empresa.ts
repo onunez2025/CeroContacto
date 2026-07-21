@@ -55,6 +55,8 @@ async function createEmpresa(input: EmpresaInput, client: IC4CODataClient): Prom
   const created = await client.postEntity<CorporateAccount>(`${NS}/CorporateAccountCollection`, {
     RoleCode: "CRM000",
     Name: input.razonSocial,
+    Phone: input.telefono,
+    Mobile: input.telefono2 ?? "",
     LanguageCode: "ES",
     SalesSupportBlockingIndicator: false,
     LegalCompetenceIndicator: true,

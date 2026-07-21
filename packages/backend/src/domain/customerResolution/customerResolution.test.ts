@@ -28,6 +28,8 @@ describe("resolveCustomer - Empresa (RUC)", () => {
     tipoDocumento: "RUC",
     numeroDocumento: "20525512348",
     razonSocial: "SERVICIOS MEDICOS M'VAPE S.A.C.",
+    telefono: "+51942568111",
+    telefono2: "+51987654321",
     direccion,
   };
 
@@ -73,6 +75,8 @@ describe("resolveCustomer - Empresa (RUC)", () => {
     const [createUrl, createBody] = postEntity.mock.calls[0] as [string, Record<string, unknown>];
     expect(createUrl).toContain("CorporateAccountCollection");
     expect((createBody.CorporateAccountTaxNumber as Array<{ TaxID: string }>)[0]?.TaxID).toBe("20525512348");
+    expect(createBody.Phone).toBe("+51942568111");
+    expect(createBody.Mobile).toBe("+51987654321");
   });
 });
 
@@ -82,6 +86,7 @@ describe("resolveCustomer - Individual DNI", () => {
     numeroDocumento: "15619884",
     nombres: "ALVARO MIGUEL",
     apellidos: "SEBASTIANI RUBIO",
+    telefono: "+51942568111",
     direccion,
   };
 
@@ -99,6 +104,8 @@ describe("resolveCustomer - Individual DNI", () => {
     expect(result.wasCreated).toBe(true);
     const [, createBody] = postEntity.mock.calls[0] as [string, Record<string, unknown>];
     expect((createBody.IndividualCustomerTaxNumber as Array<{ TaxTypeCode: string }>)[0]?.TaxTypeCode).toBe("2");
+    expect(createBody.Phone).toBe("+51942568111");
+    expect(createBody.Mobile).toBe("");
   });
 
   it("Caso 4: cliente existente - no crea nada", async () => {
@@ -122,6 +129,7 @@ describe("resolveCustomer - Individual CE (Carne de Extranjeria)", () => {
     numeroDocumento: "AB123456",
     nombres: "JOHN",
     apellidos: "SMITH",
+    telefono: "+51942568111",
     direccion,
   };
 

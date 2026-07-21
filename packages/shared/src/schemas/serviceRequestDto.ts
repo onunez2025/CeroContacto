@@ -53,6 +53,13 @@ const ProductosSchema = z
 
 const BaseFieldsSchema = z.object({
   telefono: z.string().regex(PHONE_REGEX, "Telefono invalido"),
+  /**
+   * "Telefono de contacto (linea 2)" - opcional, igual que en el
+   * formulario actual (servicio-tecnico.sole.com.pe tiene 2 campos de
+   * telefono). Mapea a IndividualCustomer/CorporateAccount.Mobile
+   * (telefono va a .Phone), confirmado via $metadata de C4C.
+   */
+  telefono2: z.string().regex(PHONE_REGEX, "Telefono invalido").optional(),
   email: z.string().email("Email invalido"),
   direccion: AddressSchema,
   productos: ProductosSchema,

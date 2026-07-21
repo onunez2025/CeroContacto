@@ -69,6 +69,8 @@ async function createIndividual(
     RoleCode: "CRM000",
     FirstName: input.nombres,
     LastName: input.apellidos,
+    Phone: input.telefono,
+    Mobile: input.telefono2 ?? "",
     GenderCode: "0",
     SalesSupportBlockingIndicator: false,
     zaGrupoDeCuenta_KUT: "Z001",

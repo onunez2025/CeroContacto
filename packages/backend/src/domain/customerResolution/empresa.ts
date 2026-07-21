@@ -57,6 +57,7 @@ async function createEmpresa(input: EmpresaInput, client: IC4CODataClient): Prom
     Name: input.razonSocial,
     Phone: input.telefono,
     Mobile: input.telefono2 ?? "",
+    Email: input.email,
     LanguageCode: "ES",
     SalesSupportBlockingIndicator: false,
     LegalCompetenceIndicator: true,

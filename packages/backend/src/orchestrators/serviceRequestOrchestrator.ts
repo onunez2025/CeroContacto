@@ -16,6 +16,7 @@ function toCustomerResolutionInput(submission: ServiceRequestSubmission): Custom
       razonSocial: submission.razonSocial,
       telefono: submission.telefono,
       telefono2: submission.telefono2,
+      email: submission.email,
       direccion: submission.direccion,
     };
   }
@@ -26,6 +27,7 @@ function toCustomerResolutionInput(submission: ServiceRequestSubmission): Custom
     apellidos: submission.apellidos,
     telefono: submission.telefono,
     telefono2: submission.telefono2,
+    email: submission.email,
     direccion: submission.direccion,
   };
 }

@@ -71,6 +71,7 @@ async function createIndividual(
     LastName: input.apellidos,
     Phone: input.telefono,
     Mobile: input.telefono2 ?? "",
+    Email: input.email,
     GenderCode: "0",
     SalesSupportBlockingIndicator: false,
     zaGrupoDeCuenta_KUT: "Z001",

@@ -30,6 +30,7 @@ describe("resolveCustomer - Empresa (RUC)", () => {
     razonSocial: "SERVICIOS MEDICOS M'VAPE S.A.C.",
     telefono: "+51942568111",
     telefono2: "+51987654321",
+    email: "empresa@example.com",
     direccion,
   };
 
@@ -77,6 +78,7 @@ describe("resolveCustomer - Empresa (RUC)", () => {
     expect((createBody.CorporateAccountTaxNumber as Array<{ TaxID: string }>)[0]?.TaxID).toBe("20525512348");
     expect(createBody.Phone).toBe("+51942568111");
     expect(createBody.Mobile).toBe("+51987654321");
+    expect(createBody.Email).toBe("empresa@example.com");
   });
 });
 
@@ -87,6 +89,7 @@ describe("resolveCustomer - Individual DNI", () => {
     nombres: "ALVARO MIGUEL",
     apellidos: "SEBASTIANI RUBIO",
     telefono: "+51942568111",
+    email: "cliente@example.com",
     direccion,
   };
 
@@ -106,6 +109,7 @@ describe("resolveCustomer - Individual DNI", () => {
     expect((createBody.IndividualCustomerTaxNumber as Array<{ TaxTypeCode: string }>)[0]?.TaxTypeCode).toBe("2");
     expect(createBody.Phone).toBe("+51942568111");
     expect(createBody.Mobile).toBe("");
+    expect(createBody.Email).toBe("cliente@example.com");
   });
 
   it("Caso 4: cliente existente - no crea nada", async () => {
@@ -130,6 +134,7 @@ describe("resolveCustomer - Individual CE (Carne de Extranjeria)", () => {
     nombres: "JOHN",
     apellidos: "SMITH",
     telefono: "+51942568111",
+    email: "john.smith@example.com",
     direccion,
   };
 

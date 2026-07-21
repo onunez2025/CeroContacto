@@ -25,6 +25,7 @@ export interface EmpresaInput {
   razonSocial: string;
   telefono: string;
   telefono2?: string;
+  email: string;
   direccion: Address;
 }
 
@@ -45,6 +46,7 @@ export interface IndividualInput {
   apellidos: string;
   telefono: string;
   telefono2?: string;
+  email: string;
   direccion: Address;
 }
 

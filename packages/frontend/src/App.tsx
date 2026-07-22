@@ -89,7 +89,7 @@ function buildSubmission(form: FormState): unknown {
       ...(form.piso.trim() ? { piso: form.piso.trim() } : {}),
     },
     productos: form.productos.map((p) => ({
-      numeroSerie: p.numeroSerie.trim(),
+      ...(p.numeroSerie.trim() ? { numeroSerie: p.numeroSerie.trim() } : {}),
       productId: p.productId.trim(),
       ...(p.fotos.length ? { fotos: p.fotos } : {}),
     })),
@@ -557,7 +557,7 @@ export default function App() {
                   fotosError={fieldErrors[`productos.${index}.fotos`]}
                 />
                 <div className="field">
-                  <label htmlFor={`numeroSerie-${index}`}>Número de serie</label>
+                  <label htmlFor={`numeroSerie-${index}`}>Número de serie (opcional)</label>
                   <input
                     id={`numeroSerie-${index}`}
                     type="text"

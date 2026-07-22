@@ -59,7 +59,7 @@ const FOTO_DATA_URL_REGEX = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+
 const FotosSchema = z.array(z.string().regex(FOTO_DATA_URL_REGEX, "Formato de foto invalido")).max(6, "Maximo 6 fotos por producto").optional();
 
 const ProductoSchema = z.object({
-  numeroSerie: z.string().min(1, "Numero de serie requerido").max(120),
+  numeroSerie: z.string().max(120).optional(),
   productId: z.string().min(1, "Modelo de producto requerido").max(60),
   fotos: FotosSchema,
 });

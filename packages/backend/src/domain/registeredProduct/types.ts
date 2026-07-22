@@ -2,7 +2,7 @@ import type { Address } from "@cerocontacto/shared";
 
 export interface RegisteredProductInput {
   /** Mapea a zaIDdeSerieFSM_KUT (MaxLength 120). Ver riesgo de calidad de dato en index.ts. */
-  numeroSerie: string;
+  numeroSerie?: string;
   /** ProductID maestro (modelo), MaxLength 60. */
   productId: string;
   /** AccountID (empresa) o CustomerID (individual) resuelto por customerResolution. */

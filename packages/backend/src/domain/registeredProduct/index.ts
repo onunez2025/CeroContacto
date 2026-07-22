@@ -49,17 +49,24 @@ async function uploadFotos(registeredProductId: string, fotos: string[], client:
  * antes de crear" puede no encontrar coincidencias reales (crea
  * duplicados) o no aplica si el dato de origen es basura. Ver seccion B
  * del cuestionario tecnico.
+ *
+ * numeroSerie es opcional en el formulario: sin el, no hay forma segura de
+ * buscar un producto ya registrado (un filtro por serie vacia matchearia
+ * cualquier otro producto con el mismo campo en blanco), asi que se
+ * salta la busqueda y siempre se crea un RegisteredProduct nuevo.
  */
 export async function resolveRegisteredProduct(
   input: RegisteredProductInput,
   client: IC4CODataClient,
 ): Promise<RegisteredProductResult> {
-  const filter = eq("zaIDdeSerieFSM_KUT", input.numeroSerie);
-  const matches = await client.getCollection<RegisteredProductRecord>(
-    `${NS}/RegisteredProductCollection?$filter=${encodeURIComponent(filter)}`,
-  );
+  const existing = input.numeroSerie
+    ? (
+        await client.getCollection<RegisteredProductRecord>(
+          `${NS}/RegisteredProductCollection?$filter=${encodeURIComponent(eq("zaIDdeSerieFSM_KUT", input.numeroSerie))}`,
+        )
+      )[0]
+    : undefined;
 
-  const existing = matches[0];
   if (existing) {
     if (input.fotos?.length) {
       await uploadFotos(existing.ID, input.fotos, client);
@@ -69,7 +76,7 @@ export async function resolveRegisteredProduct(
 
   const created = await client.postEntity<RegisteredProductRecord>(`${NS}/RegisteredProductCollection`, {
     SerialID: "",
-    zaIDdeSerieFSM_KUT: input.numeroSerie,
+    zaIDdeSerieFSM_KUT: input.numeroSerie ?? "",
     ProductID: input.productId,
     RegisteredProductCategory: "1",
     Status: "2",

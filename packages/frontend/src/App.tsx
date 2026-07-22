@@ -243,7 +243,8 @@ export default function App() {
     return (
       <main className="page">
         <HeroPanel />
-        <div className="card result-card">
+        <div className="card">
+        <div className="card__inner result-card">
           {result.status === "Completed" ? (
             <>
               <h1>¡Listo! Tu solicitud fue registrada</h1>
@@ -283,6 +284,7 @@ export default function App() {
             Volver al formulario
           </button>
         </div>
+        </div>
       </main>
     );
   }
@@ -291,6 +293,8 @@ export default function App() {
     <main className="page">
       <HeroPanel />
       <div className="card">
+      <div className="card__inner">
+        <h1 className="form-title">Programa tu servicio</h1>
         <StepHeader current={step} onSelect={goToStep} />
         <form onSubmit={handleSubmit} noValidate>
           {step === 1 && (
@@ -665,6 +669,7 @@ export default function App() {
           </fieldset>
           )}
         </form>
+      </div>
       </div>
     </main>
   );

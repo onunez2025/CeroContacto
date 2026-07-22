@@ -80,14 +80,18 @@ body {
   background: var(--bg-panel);
   flex: 1;
   min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.card__inner {
   width: 100%;
   max-width: 640px;
-  margin: 0 auto;
   padding: 3rem clamp(1.25rem, 5vw, 3rem) 4rem;
 }
 
 @media (max-width: 850px) {
-  .card {
+  .card__inner {
     padding: 2.25rem 1.25rem 3rem;
   }
 }
@@ -96,6 +100,14 @@ h1 {
   font-size: 1.4rem;
   font-weight: 900;
   margin: 0 0 0.5rem;
+}
+
+.form-title {
+  color: var(--color-primary);
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  font-weight: 900;
+  text-align: center;
+  margin: 0 0 1.75rem;
 }
 
 .muted {
@@ -339,7 +351,7 @@ select:disabled {
   font-size: 0.95rem;
   font-weight: 900;
   padding: 0.85rem 1.4rem;
-  border-radius: 999px;
+  border-radius: 10px;
   border: none;
   cursor: pointer;
   margin-top: 1.5rem;
@@ -368,13 +380,12 @@ select:disabled {
 }
 
 .btn-secondary {
-  background: #ffffff;
-  color: var(--color-primary);
-  border: 1px solid var(--color-border);
+  background: var(--color-primary);
+  color: #ffffff;
 }
 
 .btn-secondary:hover {
-  border-color: var(--color-primary);
+  background: var(--color-primary-hover);
 }
 
 .result-card {

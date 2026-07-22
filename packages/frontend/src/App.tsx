@@ -121,6 +121,7 @@ function buildSubmission(form: FormState): unknown {
 type Phase = "editing" | "submitting" | "done";
 
 const TRUST_ITEMS = ["Garantía de fabricante", "Técnicos expertos", "Repuestos propios"];
+const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=5116190500&text&type=phone_number&app_absent=0";
 
 function HeroPanel() {
   return (
@@ -141,8 +142,49 @@ function HeroPanel() {
           </li>
         ))}
       </ul>
+      <a className="hero__whatsapp" href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+        Escríbenos por WhatsApp
+      </a>
     </aside>
   );
+}
+
+interface StepDef {
+  n: 1 | 2 | 3 | 4;
+  label: string;
+}
+
+const STEPS: StepDef[] = [
+  { n: 1, label: "Datos personales" },
+  { n: 2, label: "Dirección" },
+  { n: 3, label: "Equipos" },
+  { n: 4, label: "Fecha" },
+];
+
+function StepHeader({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
+  return (
+    <ol className="steps">
+      {STEPS.map((s) => (
+        <li key={s.n} className={`steps__item ${s.n === current ? "is-current" : ""} ${s.n < current ? "is-done" : ""}`}>
+          <button type="button" className="steps__button" onClick={() => onSelect(s.n)}>
+            <span className="steps__circle">{s.n}</span>
+            <span className="steps__label">{s.label}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** A que paso pertenece cada campo, para saltar al primero con error si falla la validacion final. */
+function stepForField(path: string): number {
+  if (path.startsWith("direccion.")) return 2;
+  if (path.startsWith("productos")) return 3;
+  if (path === "fechaVisita" || path === "comentario" || path === "medioContacto" || path === "consentimiento") return 4;
+  return 1;
 }
 
 export default function App() {
@@ -151,6 +193,12 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>("editing");
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
+
+  function goToStep(next: number) {
+    setStep(next);
+    document.querySelector(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -188,6 +236,8 @@ export default function App() {
         errors[issue.path.join(".")] = issue.message;
       }
       setFieldErrors(errors);
+      const firstErrorStep = Math.min(...Object.keys(errors).map(stepForField));
+      goToStep(firstErrorStep);
       return;
     }
 
@@ -242,6 +292,7 @@ export default function App() {
             onClick={() => {
               setPhase("editing");
               setResult(null);
+              setStep(1);
             }}
           >
             Volver al formulario
@@ -255,7 +306,9 @@ export default function App() {
     <main className="page">
       <HeroPanel />
       <div className="card">
+        <StepHeader current={step} onSelect={goToStep} />
         <form onSubmit={handleSubmit} noValidate>
+          {step === 1 && (
           <fieldset>
             <legend>Datos personales</legend>
 
@@ -359,8 +412,16 @@ export default function App() {
               </select>
               <FieldError message={fieldErrors.lugarCompra} />
             </div>
-          </fieldset>
 
+            <div className="step-actions">
+              <button type="button" className="btn-primary" onClick={() => goToStep(2)}>
+                Siguiente
+              </button>
+            </div>
+          </fieldset>
+          )}
+
+          {step === 2 && (
           <fieldset>
             <legend>Dirección de instalación</legend>
 
@@ -471,8 +532,19 @@ export default function App() {
               <label htmlFor="piso">Piso / dpto. (opcional)</label>
               <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", e.target.value)} />
             </div>
-          </fieldset>
 
+            <div className="step-actions">
+              <button type="button" className="btn-secondary" onClick={() => goToStep(1)}>
+                Anterior
+              </button>
+              <button type="button" className="btn-primary" onClick={() => goToStep(3)}>
+                Siguiente
+              </button>
+            </div>
+          </fieldset>
+          )}
+
+          {step === 3 && (
           <fieldset>
             <legend>Tus equipos</legend>
             <p className="hint">
@@ -519,8 +591,19 @@ export default function App() {
               </button>
             ) : null}
             <FieldError message={fieldErrors.productos} />
-          </fieldset>
 
+            <div className="step-actions">
+              <button type="button" className="btn-secondary" onClick={() => goToStep(2)}>
+                Anterior
+              </button>
+              <button type="button" className="btn-primary" onClick={() => goToStep(4)}>
+                Siguiente
+              </button>
+            </div>
+          </fieldset>
+          )}
+
+          {step === 4 && (
           <fieldset>
             <legend>Fecha de visita</legend>
             <div className="field">
@@ -577,19 +660,25 @@ export default function App() {
                 </label>
               </div>
             </div>
+
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.consentimiento} onChange={(e) => update("consentimiento", e.target.checked)} />
+              <span>He leído y acepto la política de privacidad.</span>
+            </label>
+            <FieldError message={fieldErrors.consentimiento} />
+
+            {submitError ? <p className="error-banner">{submitError}</p> : null}
+
+            <div className="step-actions">
+              <button type="button" className="btn-secondary" onClick={() => goToStep(3)}>
+                Anterior
+              </button>
+              <button type="submit" className="btn-primary" disabled={phase === "submitting"}>
+                {phase === "submitting" ? "Enviando… esto puede tardar unos segundos" : "Enviar solicitud"}
+              </button>
+            </div>
           </fieldset>
-
-          <label className="checkbox-row">
-            <input type="checkbox" checked={form.consentimiento} onChange={(e) => update("consentimiento", e.target.checked)} />
-            <span>He leído y acepto la política de privacidad.</span>
-          </label>
-          <FieldError message={fieldErrors.consentimiento} />
-
-          {submitError ? <p className="error-banner">{submitError}</p> : null}
-
-          <button type="submit" className="btn-primary" disabled={phase === "submitting"}>
-            {phase === "submitting" ? "Enviando… esto puede tardar unos segundos" : "Enviar solicitud"}
-          </button>
+          )}
         </form>
       </div>
     </main>

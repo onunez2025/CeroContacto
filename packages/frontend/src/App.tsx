@@ -398,14 +398,26 @@ export default function App() {
 
             <div className="field">
               <label htmlFor="direccion">Dirección</label>
-              <input id="direccion" type="text" value={form.direccion} onChange={(e) => update("direccion", e.target.value)} />
+              <input
+                id="direccion"
+                type="text"
+                maxLength={60}
+                value={form.direccion}
+                onChange={(e) => update("direccion", e.target.value)}
+              />
               <FieldError message={fieldErrors["direccion.direccion"]} />
             </div>
 
             <div className="field-row">
               <div className="field">
                 <label htmlFor="numero">Número</label>
-                <input id="numero" type="text" value={form.numero} onChange={(e) => update("numero", e.target.value)} />
+                <input
+                  id="numero"
+                  type="text"
+                  maxLength={10}
+                  value={form.numero}
+                  onChange={(e) => update("numero", e.target.value)}
+                />
                 <FieldError message={fieldErrors["direccion.numero"]} />
               </div>
               <div className="field">
@@ -422,12 +434,18 @@ export default function App() {
 
             <div className="field">
               <label htmlFor="referencia">Referencia</label>
-              <input id="referencia" type="text" value={form.referencia} onChange={(e) => update("referencia", e.target.value)} />
+              <input
+                id="referencia"
+                type="text"
+                maxLength={40}
+                value={form.referencia}
+                onChange={(e) => update("referencia", e.target.value)}
+              />
               <FieldError message={fieldErrors["direccion.referencia"]} />
             </div>
             <div className="field">
               <label htmlFor="piso">Piso / dpto. (opcional)</label>
-              <input id="piso" type="text" value={form.piso} onChange={(e) => update("piso", e.target.value)} />
+              <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", e.target.value)} />
             </div>
           </fieldset>
 

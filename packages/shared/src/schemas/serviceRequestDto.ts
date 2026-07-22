@@ -13,16 +13,30 @@ export const AddressSchema = z.object({
   codigoPostal: z
     .string()
     .regex(/^\d{4,6}$/, "Codigo postal invalido"),
-  direccion: z.string().min(3, "Direccion requerida").max(120),
-  numero: z.string().min(1).max(20),
+  /**
+   * Mapea a Street (CorporateAccountAddress/IndividualCustomerAddress),
+   * MaxLength 60 - confirmado via $metadata. RegisteredProduct.Street
+   * tambien es 60, asi que el limite coincide en ambos destinos.
+   */
+  direccion: z.string().min(3, "Direccion requerida").max(60),
+  /**
+   * Mapea a HouseNumber, MaxLength 10 en CorporateAccountAddress/
+   * IndividualCustomerAddress (RegisteredProduct.House permite 100, pero
+   * el mismo valor va a ambos - se usa el limite mas estricto).
+   */
+  numero: z.string().min(1).max(10),
   /**
    * Obligatoria: confirmado en el formulario real de C4C ("Nuevo cliente
    * individual" en Fiori) - Referencia tiene asterisco rojo (*), a
-   * diferencia de Referencia Adicional que si es opcional.
+   * diferencia de Referencia Adicional que si es opcional. Mapea a
+   * AddressLine5, MaxLength 40 en CorporateAccountAddress/
+   * IndividualCustomerAddress (RegisteredProduct.AddressLine5 permite 240,
+   * pero de nuevo se usa el limite mas estricto de los dos destinos).
    */
-  referencia: z.string().min(1, "Referencia requerida").max(200),
+  referencia: z.string().min(1, "Referencia requerida").max(40),
   referenciaAdicional: z.string().max(200).optional(),
-  piso: z.string().max(20).optional(),
+  /** Mapea a Floor, MaxLength 10 en ambos destinos (cliente y producto registrado). */
+  piso: z.string().max(10).optional(),
 });
 export type Address = z.infer<typeof AddressSchema>;
 

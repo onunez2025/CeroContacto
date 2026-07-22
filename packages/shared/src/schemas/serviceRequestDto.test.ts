@@ -133,4 +133,45 @@ describe("ServiceRequestSubmissionSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  /**
+   * Limites confirmados via $metadata de C4C (Street/HouseNumber/AddressLine5/
+   * Floor en CorporateAccountAddress e IndividualCustomerAddress) - un valor
+   * mas largo lo rechazaria C4C al crear el cliente.
+   */
+  it("rechaza direccion.direccion mas larga que 60 caracteres (limite de Street en C4C)", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      direccion: { ...direccion, direccion: "A".repeat(61) },
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza direccion.referencia mas larga que 40 caracteres (limite de AddressLine5 en C4C)", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      direccion: { ...direccion, referencia: "A".repeat(41) },
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza direccion.numero mas largo que 10 caracteres (limite de HouseNumber en C4C)", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      direccion: { ...direccion, numero: "12345678901" },
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(false);
+  });
 });

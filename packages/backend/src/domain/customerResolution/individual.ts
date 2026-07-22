@@ -29,14 +29,22 @@ export async function resolveIndividual(
 
   const existing = taxMatches[0];
   if (existing) {
-    return resolveExistingIndividual(existing, client);
+    return resolveExistingIndividual(existing, input, client);
   }
 
   return createIndividual(input, taxTypeCode, client);
 }
 
+/**
+ * Algunos clientes ya existentes en C4C (migrados de sistemas previos) no
+ * tienen StateCode/StreetPostalCode registrados. En vez de fallar toda la
+ * solicitud, se les agrega la direccion recien ingresada por el cliente -
+ * mismo POST de IndividualCustomerAddress que usa createIndividual para un
+ * cliente nuevo.
+ */
 async function resolveExistingIndividual(
   taxMatch: IndividualCustomerTaxNumber,
+  input: IndividualInput,
   client: IC4CODataClient,
 ): Promise<CustomerResolutionResult> {
   const filter = eq("CustomerID", taxMatch.CustomerID);
@@ -44,19 +52,38 @@ async function resolveExistingIndividual(
     `${NS}/IndividualCustomerCollection?$filter=${encodeURIComponent(filter)}`,
   );
   const customer = customers[0];
-  if (!customer?.StateCode || !customer?.StreetPostalCode) {
-    throw new Error(
-      `IndividualCustomer ${taxMatch.CustomerID} existe pero no tiene StateCode/StreetPostalCode registrados en C4C`,
-    );
+  if (customer?.StateCode && customer?.StreetPostalCode) {
+    return {
+      clientKind: "individual",
+      buyerPartyId: taxMatch.CustomerID,
+      clienteObjectId: taxMatch.ParentObjectID,
+      wasCreated: false,
+      regionCode: customer.StateCode,
+      postalCode: customer.StreetPostalCode,
+    };
   }
+
+  await client.postEntity(`${NS}/IndividualCustomerCollection('${taxMatch.ParentObjectID}')/IndividualCustomerAddress`, {
+    CountryCode: "PE",
+    StateCode: input.direccion.departamento,
+    zIDProvinciacontent_SDK: input.direccion.provincia,
+    zIDDistritocontent_SDK: input.direccion.distrito,
+    HouseNumber: input.direccion.numero,
+    Street: input.direccion.direccion,
+    AddressLine5: input.direccion.referencia,
+    zaReferenciaAdicional_KUT: input.direccion.referenciaAdicional ?? "",
+    StreetPostalCode: input.direccion.codigoPostal,
+    TimeZoneCode: "UTC-5",
+    Floor: input.direccion.piso ?? "",
+  });
 
   return {
     clientKind: "individual",
     buyerPartyId: taxMatch.CustomerID,
     clienteObjectId: taxMatch.ParentObjectID,
     wasCreated: false,
-    regionCode: customer.StateCode,
-    postalCode: customer.StreetPostalCode,
+    regionCode: input.direccion.departamento,
+    postalCode: input.direccion.codigoPostal,
   };
 }
 

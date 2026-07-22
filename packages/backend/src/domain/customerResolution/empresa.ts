@@ -20,14 +20,22 @@ export async function resolveEmpresa(
 
   const existing = taxMatches[0];
   if (existing) {
-    return resolveExistingEmpresa(existing, client);
+    return resolveExistingEmpresa(existing, input, client);
   }
 
   return createEmpresa(input, client);
 }
 
+/**
+ * Algunas cuentas ya existentes en C4C (migradas de sistemas previos) no
+ * tienen StateCode/StreetPostalCode registrados. En vez de fallar toda la
+ * solicitud, se les agrega la direccion recien ingresada por el cliente -
+ * mismo POST de CorporateAccountAddress que usa createEmpresa para una
+ * cuenta nueva.
+ */
 async function resolveExistingEmpresa(
   taxMatch: CorporateAccountTaxNumber,
+  input: EmpresaInput,
   client: IC4CODataClient,
 ): Promise<CustomerResolutionResult> {
   const filter = eq("AccountID", taxMatch.AccountID);
@@ -35,19 +43,38 @@ async function resolveExistingEmpresa(
     `${NS}/CorporateAccountCollection?$filter=${encodeURIComponent(filter)}`,
   );
   const account = accounts[0];
-  if (!account?.StateCode || !account?.StreetPostalCode) {
-    throw new Error(
-      `CorporateAccount ${taxMatch.AccountID} existe pero no tiene StateCode/StreetPostalCode registrados en C4C`,
-    );
+  if (account?.StateCode && account?.StreetPostalCode) {
+    return {
+      clientKind: "empresa",
+      buyerPartyId: taxMatch.AccountID,
+      clienteObjectId: taxMatch.ParentObjectID,
+      wasCreated: false,
+      regionCode: account.StateCode,
+      postalCode: account.StreetPostalCode,
+    };
   }
+
+  await client.postEntity(`${NS}/CorporateAccountCollection('${taxMatch.ParentObjectID}')/CorporateAccountAddress`, {
+    CountryCode: "PE",
+    StateCode: input.direccion.departamento,
+    zIDProvinciacontent_SDK: input.direccion.provincia,
+    zIDDistritocontent_SDK: input.direccion.distrito,
+    HouseNumber: input.direccion.numero,
+    Street: input.direccion.direccion,
+    AddressLine5: input.direccion.referencia,
+    zaReferenciaAdicional_KUT: input.direccion.referenciaAdicional ?? "",
+    StreetPostalCode: input.direccion.codigoPostal,
+    TimeZoneCode: "UTC-5",
+    Floor: input.direccion.piso ?? "",
+  });
 
   return {
     clientKind: "empresa",
     buyerPartyId: taxMatch.AccountID,
     clienteObjectId: taxMatch.ParentObjectID,
     wasCreated: false,
-    regionCode: account.StateCode,
-    postalCode: account.StreetPostalCode,
+    regionCode: input.direccion.departamento,
+    postalCode: input.direccion.codigoPostal,
   };
 }
 

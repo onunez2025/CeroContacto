@@ -7,6 +7,37 @@ export * from "./types.js";
 
 const NS = "v1/c4codataapi";
 
+/** CategoryCode "2"=Documento, TypeCode "10011"=Product Image - confirmados via value-help de C4C. */
+const PHOTO_CATEGORY_CODE = "2";
+const PHOTO_TYPE_CODE = "10011";
+
+function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) {
+    throw new Error("Foto con formato de data URL invalido");
+  }
+  return { mimeType: match[1] as string, base64: match[2] as string };
+}
+
+/**
+ * Sube cada foto como RegisteredProductAttachmentFolder ligado al
+ * producto registrado (RegisteredProductID es un campo plano, no hace
+ * falta anidar bajo RegisteredProductCollection('...')/...).
+ */
+async function uploadFotos(registeredProductId: string, fotos: string[], client: IC4CODataClient): Promise<void> {
+  for (const [index, foto] of fotos.entries()) {
+    const { mimeType, base64 } = parseDataUrl(foto);
+    await client.postEntity(`${NS}/RegisteredProductAttachmentFolderCollection`, {
+      RegisteredProductID: registeredProductId,
+      CategoryCode: PHOTO_CATEGORY_CODE,
+      TypeCode: PHOTO_TYPE_CODE,
+      MimeType: mimeType,
+      Name: `foto-${index + 1}.jpg`,
+      Binary: base64,
+    });
+  }
+}
+
 /**
  * Modulo Producto Registrado (comun a los 4 casos de cliente):
  * 2.1 Consulta por zaIDdeSerieFSM_KUT -> si hay resultado, ya existe.
@@ -30,6 +61,9 @@ export async function resolveRegisteredProduct(
 
   const existing = matches[0];
   if (existing) {
+    if (input.fotos?.length) {
+      await uploadFotos(existing.ID, input.fotos, client);
+    }
     return { installationPointId: existing.ID, objectId: existing.ObjectID, wasCreated: false };
   }
 
@@ -55,6 +89,10 @@ export async function resolveRegisteredProduct(
     Floor: input.direccion.piso ?? "",
     RegisteredProductPartyInformation: [{ RoleCode: "60", PartyID: input.buyerPartyId }],
   });
+
+  if (input.fotos?.length) {
+    await uploadFotos(created.ID, input.fotos, client);
+  }
 
   return { installationPointId: created.ID, objectId: created.ObjectID, wasCreated: true };
 }

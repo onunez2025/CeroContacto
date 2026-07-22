@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
+import { resizeImageToDataUrl } from "./imageResize.js";
 import { PRODUCT_CATEGORIES } from "./productCategories.js";
+
+const MAX_FOTOS = 6;
 
 interface ProductoPickerProps {
   idPrefix: string;
   categoria: string;
   productId: string;
   productNombre: string;
+  fotos: string[];
   onCategoriaChange: (categoria: string) => void;
   onProductoChange: (productId: string, nombre: string) => void;
+  onFotosChange: (fotos: string[]) => void;
   categoriaError?: string;
   productoError?: string;
+  fotosError?: string;
 }
 
 /**
@@ -25,15 +31,19 @@ export function ProductoPicker({
   categoria,
   productId,
   productNombre,
+  fotos,
   onCategoriaChange,
   onProductoChange,
+  onFotosChange,
   categoriaError,
   productoError,
+  fotosError,
 }: ProductoPickerProps) {
   const [query, setQuery] = useState(productNombre);
   const [results, setResults] = useState<ProductCatalogItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [processingFotos, setProcessingFotos] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
@@ -67,6 +77,26 @@ export function ProductoPicker({
     setQuery(item.nombre);
     setResults([]);
     setOpen(false);
+  }
+
+  async function handleFotosSelected(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList).slice(0, Math.max(0, MAX_FOTOS - fotos.length));
+
+    setProcessingFotos(true);
+    try {
+      const resized = await Promise.all(files.map((file) => resizeImageToDataUrl(file)));
+      onFotosChange([...fotos, ...resized]);
+    } catch {
+      // Si una foto no se pudo procesar, se ignora silenciosamente - el
+      // cliente puede intentar tomarla de nuevo, no bloquea el resto del formulario.
+    } finally {
+      setProcessingFotos(false);
+    }
+  }
+
+  function removeFoto(index: number) {
+    onFotosChange(fotos.filter((_, i) => i !== index));
   }
 
   return (
@@ -131,6 +161,39 @@ export function ProductoPicker({
           ) : null}
         </div>
         <FieldError message={productoError} />
+      </div>
+
+      <div className="field">
+        <label htmlFor={`${idPrefix}-fotos`}>Fotos del equipo (opcional)</label>
+        {fotos.length > 0 ? (
+          <div className="foto-grid">
+            {fotos.map((foto, index) => (
+              <div className="foto-thumb" key={index}>
+                <img src={foto} alt={`Foto ${index + 1}`} />
+                <button type="button" className="foto-remove" aria-label="Quitar foto" onClick={() => removeFoto(index)}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {fotos.length < MAX_FOTOS ? (
+          <input
+            id={`${idPrefix}-fotos`}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            disabled={processingFotos}
+            onChange={(e) => {
+              void handleFotosSelected(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        ) : null}
+        {processingFotos ? <p className="hint">Procesando fotos...</p> : null}
+        <p className="hint">Hasta {MAX_FOTOS} fotos. Sirven para documentar el estado del equipo al instalarlo.</p>
+        <FieldError message={fotosError} />
       </div>
     </>
   );

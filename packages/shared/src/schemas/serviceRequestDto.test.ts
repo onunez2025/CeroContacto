@@ -174,4 +174,42 @@ describe("ServiceRequestSubmissionSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  const fakeFoto = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD";
+
+  it("acepta un producto con fotos validas (data URL)", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      productos: [{ ...productos[0], fotos: [fakeFoto, fakeFoto] }],
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza mas de 6 fotos por producto", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      productos: [{ ...productos[0], fotos: Array.from({ length: 7 }, () => fakeFoto) }],
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una foto que no es un data URL de imagen valido", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      productos: [{ ...productos[0], fotos: ["https://example.com/foto.jpg"] }],
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(false);
+  });
 });

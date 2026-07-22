@@ -15,6 +15,8 @@ interface ProductoForm {
   /** Solo para filtrar la busqueda en el frontend - no se envia al backend. */
   categoria: string;
   productNombre: string;
+  /** Data URLs (redimensionadas) - hasta 6 por producto. */
+  fotos: string[];
 }
 
 const MAX_PRODUCTOS = 4;
@@ -63,7 +65,7 @@ const initialState: FormState = {
   numero: "",
   referencia: "",
   piso: "",
-  productos: [{ numeroSerie: "", productId: "", categoria: "", productNombre: "" }],
+  productos: [{ numeroSerie: "", productId: "", categoria: "", productNombre: "", fotos: [] }],
   fechaVisita: "",
   comentario: "",
   medioContacto: "whatsapp",
@@ -89,6 +91,7 @@ function buildSubmission(form: FormState): unknown {
     productos: form.productos.map((p) => ({
       numeroSerie: p.numeroSerie.trim(),
       productId: p.productId.trim(),
+      ...(p.fotos.length ? { fotos: p.fotos } : {}),
     })),
     fechaVisita: form.fechaVisita,
     ...(form.comentario.trim() ? { comentario: form.comentario.trim() } : {}),
@@ -139,7 +142,7 @@ export default function App() {
     setForm((prev) =>
       prev.productos.length >= MAX_PRODUCTOS
         ? prev
-        : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "", categoria: "", productNombre: "" }] },
+        : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "", categoria: "", productNombre: "", fotos: [] }] },
     );
   }
 
@@ -464,9 +467,12 @@ export default function App() {
                   categoria={producto.categoria}
                   productId={producto.productId}
                   productNombre={producto.productNombre}
+                  fotos={producto.fotos}
                   onCategoriaChange={(categoria) => patchProducto(index, { categoria })}
                   onProductoChange={(productId, productNombre) => patchProducto(index, { productId, productNombre })}
+                  onFotosChange={(fotos) => patchProducto(index, { fotos })}
                   productoError={fieldErrors[`productos.${index}.productId`]}
+                  fotosError={fieldErrors[`productos.${index}.fotos`]}
                 />
                 <div className="field">
                   <label htmlFor={`numeroSerie-${index}`}>Número de serie</label>

@@ -16,6 +16,8 @@ export interface RegisteredProductInput {
   lugarCompraId?: string;
   /** WarrantyID - origen aun no definido con el negocio; opcional. */
   warrantyId?: string;
+  /** Fotos del producto instalado (data URLs base64), hasta 6. Ver types.ts de shared. */
+  fotos?: string[];
 }
 
 export interface RegisteredProductResult {

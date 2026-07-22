@@ -78,4 +78,56 @@ describe("resolveRegisteredProduct", () => {
     const [, body] = postEntity.mock.calls[0] as [string, Record<string, unknown>];
     expect(body.zID_IP_LugarCompra_SDK).toBe("000...002211");
   });
+
+  const fakeFoto1 = "data:image/jpeg;base64,AAAA";
+  const fakeFoto2 = "data:image/png;base64,BBBB";
+
+  it("sube cada foto como RegisteredProductAttachmentFolder cuando se crea el producto", async () => {
+    const postEntity = vi
+      .fn()
+      .mockResolvedValueOnce({ ObjectID: "NEWOBJ", ID: "420999" })
+      .mockResolvedValue({});
+    const client = mockClient({ postEntity });
+
+    await resolveRegisteredProduct({ ...input, fotos: [fakeFoto1, fakeFoto2] }, client);
+
+    expect(postEntity).toHaveBeenCalledTimes(3);
+    const [urlFoto1, bodyFoto1] = postEntity.mock.calls[1] as [string, Record<string, unknown>];
+    expect(urlFoto1).toContain("RegisteredProductAttachmentFolderCollection");
+    expect(bodyFoto1).toEqual({
+      RegisteredProductID: "420999",
+      CategoryCode: "2",
+      TypeCode: "10011",
+      MimeType: "image/jpeg",
+      Name: "foto-1.jpg",
+      Binary: "AAAA",
+    });
+    const [, bodyFoto2] = postEntity.mock.calls[2] as [string, Record<string, unknown>];
+    expect(bodyFoto2.MimeType).toBe("image/png");
+    expect(bodyFoto2.Binary).toBe("BBBB");
+  });
+
+  it("sube fotos tambien cuando el producto ya existia", async () => {
+    const postEntity = vi.fn().mockResolvedValue({});
+    const client = mockClient({
+      getCollection: vi.fn().mockResolvedValue([{ ObjectID: "OBJ1", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }]),
+      postEntity,
+    });
+
+    await resolveRegisteredProduct({ ...input, fotos: [fakeFoto1] }, client);
+
+    expect(postEntity).toHaveBeenCalledTimes(1);
+    const [url, body] = postEntity.mock.calls[0] as [string, Record<string, unknown>];
+    expect(url).toContain("RegisteredProductAttachmentFolderCollection");
+    expect(body.RegisteredProductID).toBe("420434");
+  });
+
+  it("no sube nada si no hay fotos", async () => {
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = mockClient({ postEntity });
+
+    await resolveRegisteredProduct(input, client);
+
+    expect(postEntity).toHaveBeenCalledTimes(1);
+  });
 });

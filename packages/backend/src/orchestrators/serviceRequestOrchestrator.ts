@@ -84,6 +84,7 @@ export async function runServiceRequestOrchestration(
           productId: producto.productId,
           buyerPartyId: customer.buyerPartyId,
           direccion: submission.direccion,
+          fotos: producto.fotos,
         },
         client,
       );

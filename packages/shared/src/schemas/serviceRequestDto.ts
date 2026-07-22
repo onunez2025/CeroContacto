@@ -48,9 +48,20 @@ const PHONE_REGEX = /^\+?\d{7,15}$/;
  * inconsistentemente poblado (a veces vacio, a veces una descripcion en
  * vez de un serial real) - ver seccion B del cuestionario tecnico.
  */
+const FOTO_DATA_URL_REGEX = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/]+=*$/;
+
+/**
+ * Fotos del producto instalado - data URL base64 (redimensionadas en el
+ * navegador antes de codificar, ver ProductoPicker.tsx). Se suben a C4C
+ * como RegisteredProductAttachmentFolder (CategoryCode "2"=Documento,
+ * TypeCode "10011"=Product Image, confirmados via value-help de C4C).
+ */
+const FotosSchema = z.array(z.string().regex(FOTO_DATA_URL_REGEX, "Formato de foto invalido")).max(6, "Maximo 6 fotos por producto").optional();
+
 const ProductoSchema = z.object({
   numeroSerie: z.string().min(1, "Numero de serie requerido").max(120),
   productId: z.string().min(1, "Modelo de producto requerido").max(60),
+  fotos: FotosSchema,
 });
 
 /**

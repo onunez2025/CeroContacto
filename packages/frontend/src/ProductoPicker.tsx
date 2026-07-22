@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { searchProducts, type ProductCatalogItem } from "./api.js";
+import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { resizeImageToDataUrl } from "./imageResize.js";
 import { PRODUCT_CATEGORIES } from "./productCategories.js";
@@ -43,6 +43,7 @@ export function ProductoPicker({
   const [results, setResults] = useState<ProductCatalogItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [processingFotos, setProcessingFotos] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -57,15 +58,22 @@ export function ProductoPicker({
 
     if (!categoria || value.trim().length < 2) {
       setResults([]);
+      setSearchError(null);
       setOpen(false);
       return;
     }
 
     debounceRef.current = setTimeout(() => {
       setLoading(true);
+      setSearchError(null);
       searchProducts(categoria, value)
         .then((items) => {
           setResults(items);
+          setOpen(true);
+        })
+        .catch((err: unknown) => {
+          setSearchError(err instanceof ApiError ? err.message : "No pudimos buscar productos. Intenta de nuevo.");
+          setResults([]);
           setOpen(true);
         })
         .finally(() => setLoading(false));
@@ -146,6 +154,8 @@ export function ProductoPicker({
             <ul className="autocomplete-list">
               {loading ? (
                 <li className="autocomplete-loading">Buscando...</li>
+              ) : searchError ? (
+                <li className="autocomplete-loading autocomplete-error">{searchError}</li>
               ) : results.length === 0 ? (
                 <li className="autocomplete-loading">Sin resultados para "{query}"</li>
               ) : (

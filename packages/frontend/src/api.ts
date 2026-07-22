@@ -61,7 +61,11 @@ export interface ProductCatalogItem {
 export async function searchProducts(categoriaId: string, query: string): Promise<ProductCatalogItem[]> {
   const params = new URLSearchParams({ categoria: categoriaId, q: query });
   const res = await fetch(`/api/productos?${params.toString()}`);
-  if (!res.ok) return [];
-  const body = (await res.json().catch(() => undefined)) as { productos?: ProductCatalogItem[] } | undefined;
+  const body = (await res.json().catch(() => undefined)) as
+    | { productos?: ProductCatalogItem[]; error?: string }
+    | undefined;
+  if (!res.ok) {
+    throw new ApiError(body?.error ?? "No pudimos buscar productos. Intenta de nuevo.");
+  }
   return body?.productos ?? [];
 }

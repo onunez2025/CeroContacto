@@ -303,6 +303,10 @@ textarea:focus {
   color: var(--ink-muted);
 }
 
+.autocomplete-error {
+  color: var(--error);
+}
+
 .foto-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));

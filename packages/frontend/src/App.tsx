@@ -120,6 +120,31 @@ function buildSubmission(form: FormState): unknown {
 
 type Phase = "editing" | "submitting" | "done";
 
+const TRUST_ITEMS = ["Garantía de fabricante", "Técnicos expertos", "Repuestos propios"];
+
+function HeroPanel() {
+  return (
+    <aside className="hero">
+      <p className="hero__wordmark">SOLE</p>
+      <div className="hero__copy">
+        <p className="hero__eyebrow">Cero contacto</p>
+        <h1 className="hero__title">Programa tu instalación</h1>
+        <p className="hero__subtitle">Completa tus datos y los de tu equipo SOLE / Rinnai.</p>
+      </div>
+      <ul className="hero__trust">
+        {TRUST_ITEMS.map((item) => (
+          <li key={item}>
+            <span className="hero__trust-icon" aria-hidden="true">
+              ✓
+            </span>
+            {item}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
 export default function App() {
   const [form, setForm] = useState<FormState>(initialState);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -182,6 +207,7 @@ export default function App() {
   if (phase === "done" && result) {
     return (
       <main className="page">
+        <HeroPanel />
         <div className="card result-card">
           {result.status === "Completed" ? (
             <>
@@ -227,13 +253,8 @@ export default function App() {
 
   return (
     <main className="page">
+      <HeroPanel />
       <div className="card">
-        <header>
-          <p className="eyebrow">Cero Contacto</p>
-          <h1>Programa tu instalación</h1>
-          <p className="muted">Completa tus datos y los de tu equipo SOLE / Rinnai.</p>
-        </header>
-
         <form onSubmit={handleSubmit} noValidate>
           <fieldset>
             <legend>Datos personales</legend>

@@ -36,114 +36,42 @@ body {
 }
 
 .hero {
-  background: linear-gradient(165deg, var(--color-primary) 0%, #313e54 100%);
-  color: #ffffff;
-  padding: 3rem 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  position: relative;
+  aspect-ratio: 1417 / 1374;
+  width: 100%;
+  overflow: hidden;
 }
 
-@media (max-width: 850px) {
+@media (min-width: 851px) {
   .hero {
-    position: static;
-    height: auto;
-    padding: 2.25rem 1.5rem;
-    gap: 1.5rem;
+    position: sticky;
+    top: 0;
+    align-self: start;
   }
 }
 
-.hero__wordmark {
-  font-weight: 900;
-  font-size: 1.3rem;
-  letter-spacing: 0.1em;
-  margin: 0;
+.hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
-.hero__copy {
-  margin-top: auto;
+.hero__whatsapp-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3.6%;
+  display: block;
 }
 
-@media (max-width: 850px) {
-  .hero__copy {
-    margin-top: 0;
-  }
-}
-
-.hero__eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.75rem;
-  font-weight: 700;
-  opacity: 0.75;
-  margin: 0 0 0.6rem;
-}
-
-.hero__title {
-  font-size: clamp(1.6rem, 3vw, 2.1rem);
-  font-weight: 900;
-  line-height: 1.15;
-  margin: 0 0 0.7rem;
-}
-
-.hero__subtitle {
-  font-size: 0.95rem;
-  line-height: 1.5;
-  opacity: 0.85;
-  margin: 0;
-  max-width: 32ch;
-}
-
-.hero__trust {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.hero__trust li {
-  display: flex;
-  align-items: center;
-}
-
-.hero__trust-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  margin-right: 0.6rem;
-  font-size: 0.7rem;
-  flex-shrink: 0;
-}
-
-.hero__whatsapp {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: flex-start;
-  padding: 0.6rem 1rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition: background 0.15s;
-}
-
-.hero__whatsapp:hover {
-  background: rgba(255, 255, 255, 0.22);
+.hero__whatsapp-bar:hover,
+.hero__whatsapp-bar:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: -2px;
 }
 
 .card {

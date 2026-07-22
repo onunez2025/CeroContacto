@@ -120,34 +120,19 @@ function buildSubmission(form: FormState): unknown {
 
 type Phase = "editing" | "submitting" | "done";
 
-const TRUST_ITEMS = ["Garantía de fabricante", "Técnicos expertos", "Repuestos propios"];
 const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=5116190500&text&type=phone_number&app_absent=0";
 
 function HeroPanel() {
   return (
     <aside className="hero">
-      <p className="hero__wordmark">SOLE</p>
-      <div className="hero__copy">
-        <p className="hero__eyebrow">Cero contacto</p>
-        <h1 className="hero__title">Programa tu instalación</h1>
-        <p className="hero__subtitle">Completa tus datos y los de tu equipo SOLE / Rinnai.</p>
-      </div>
-      <ul className="hero__trust">
-        {TRUST_ITEMS.map((item) => (
-          <li key={item}>
-            <span className="hero__trust-icon" aria-hidden="true">
-              ✓
-            </span>
-            {item}
-          </li>
-        ))}
-      </ul>
-      <a className="hero__whatsapp" href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-        </svg>
-        Escríbenos por WhatsApp
-      </a>
+      <img className="hero__image" src="/hero.png" alt="Grupo Sole - Rinnal Corporation. Asegura la vida útil de tus equipos y garantiza su eficiente funcionamiento. Garantía de fabricante, técnicos expertos, repuestos propios." />
+      <a
+        className="hero__whatsapp-bar"
+        href={WHATSAPP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Comunícate a nuestro WhatsApp oficial (01) 6190500"
+      />
     </aside>
   );
 }

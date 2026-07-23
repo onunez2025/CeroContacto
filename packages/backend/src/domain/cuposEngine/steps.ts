@@ -171,6 +171,13 @@ export async function checkCapacidadRango(
 ): Promise<CupoPorAreaConFecha[]> {
   if (companyIds.length === 0) return [];
 
+  // C4C rechaza este $filter si se agrega tambien "zFecha le ..." (confirmado
+  // en vivo contra QA: "Error in filter System Query, Operation failed::
+  // Expression can not converted into ABAP select options" - un rango de dos
+  // lados sobre zFecha combinado con otros campos no se puede convertir a
+  // select-options en este servicio OData). Un solo lado (ge) combinado con
+  // el resto de campos si funciona, asi que el limite superior se filtra
+  // aca en vez de en el $filter.
   const filter = and(
     eq("zIdArea", SERVICE_AREA_ID),
     eq("zDepartamento", regionCode),
@@ -178,9 +185,9 @@ export async function checkCapacidadRango(
     cmpRaw("zCantidadDisponible", "gt", "10"),
     or(...companyIds.map((id) => eq("zIdEmpresa", id))),
     cmpRaw("zFecha", "ge", `datetime'${desde}T00:00:00'`),
-    cmpRaw("zFecha", "le", `datetime'${hasta}T00:00:00'`),
   );
-  return client.getCollection<CupoPorAreaConFecha>(
+  const results = await client.getCollection<CupoPorAreaConFecha>(
     `${CUST_NS}/cupoporarea/BO_CupoPorAreaRootCollection?$filter=${encodeURIComponent(filter)}&$select=zCantidadDisponible,zIdEmpresa,zFecha`,
   );
+  return results.filter((r) => r.zFecha.slice(0, 10) <= hasta);
 }

@@ -1,8 +1,8 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { describe, expect, it, vi } from "vitest";
-import { assignCupo } from "./index.js";
+import { assignCupo, getFechasDisponibles } from "./index.js";
 import { dayOfWeekIndex } from "./steps.js";
-import type { CuposEngineInput } from "./types.js";
+import type { CuposEngineInput, FechasDisponiblesInput } from "./types.js";
 
 const baseInput: CuposEngineInput = {
   productIds: ["10054511"],
@@ -186,5 +186,95 @@ describe("assignCupo", () => {
 
     const result = await assignCupo(baseInput, client);
     expect(result).toEqual({ ok: false, reason: "NO_CAPACITY", detail: expect.any(String) });
+  });
+});
+
+describe("getFechasDisponibles", () => {
+  const baseFechasInput: FechasDisponiblesInput = {
+    productIds: ["10054511"],
+    postalCode: "07021",
+    regionCode: "15",
+    desde: "2026-08-03", // lunes
+    hasta: "2026-08-09", // domingo siguiente
+  };
+
+  it("devuelve [] si no se resuelve el grupo de material", async () => {
+    const client = routedClient({ MaterialSalesProcessInformationCollection: [] });
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual([]);
+  });
+
+  it("devuelve [] si no hay region activa", async () => {
+    const client = routedClient({
+      MaterialSalesProcessInformationCollection: [{ ProductGroup2: "M74" }],
+      BO_RegionRootCollection: [],
+    });
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual([]);
+  });
+
+  it("devuelve [] si no hay empresas candidatas", async () => {
+    const client = routedClient({
+      MaterialSalesProcessInformationCollection: [{ ProductGroup2: "M74" }],
+      BO_RegionRootCollection: [region],
+      BO_CuposEmpresaRootCollection: [],
+    });
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual([]);
+  });
+
+  it("devuelve [] si ninguna candidata pasa tipo de servicio o grupo de material", async () => {
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
+      if (path.includes("BO_RegionRootCollection")) return [region];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      if (path.includes("CuposTipoServicio")) return [];
+      return [];
+    });
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual([]);
+  });
+
+  it("devuelve solo las fechas con cupo y dia de semana habilitado para alguna candidata elegible", async () => {
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
+      if (path.includes("BO_RegionRootCollection")) return [region];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
+      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
+      // Candidata trabaja lunes y miercoles, no martes.
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true, zCupFechMircoles: true }];
+      if (path.includes("BO_CupoPorAreaRootCollection")) {
+        return [
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadDisponible: 15 }, // lunes, con cupo
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-04T00:00:00", zCantidadDisponible: 20 }, // martes, con cupo pero no trabaja
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-05T00:00:00", zCantidadDisponible: 12 }, // miercoles, con cupo
+        ];
+      }
+      return [];
+    });
+
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual(["2026-08-03", "2026-08-05"]);
+  });
+
+  it("la consulta de capacidad filtra explicitamente por mas de 10 cupos disponibles", async () => {
+    let capturedPath = "";
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
+      if (path.includes("BO_RegionRootCollection")) return [region];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
+      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("BO_CupoPorAreaRootCollection")) {
+        capturedPath = path;
+        return [];
+      }
+      return [];
+    });
+
+    await getFechasDisponibles(baseFechasInput, client);
+    expect(capturedPath).toContain(encodeURIComponent("zCantidadDisponible gt 10"));
   });
 });

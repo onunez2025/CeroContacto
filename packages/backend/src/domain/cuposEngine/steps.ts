@@ -61,7 +61,7 @@ export async function isGrupoMaterialHabilitado(
   return results.length > 0;
 }
 
-const DAY_FIELDS = [
+export const DAY_FIELDS = [
   "zCupFechDomingo",
   "zCupFechLunes",
   "zCupFechMartes",

@@ -8,6 +8,7 @@ import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { PERU_PROVINCIAS } from "./peruProvincias.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
+import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 
 interface ProductoForm {
   numeroSerie: string;
@@ -596,14 +597,16 @@ export default function App() {
           <fieldset>
             <legend>Fecha de visita</legend>
             <div className="field">
-              <label htmlFor="fechaVisita">Fecha deseada</label>
-              <input
-                id="fechaVisita"
-                type="date"
+              <label>Fecha deseada</label>
+              <FechaDisponibleCalendar
+                departamento={form.departamento}
+                codigoPostal={form.codigoPostal}
+                productIds={form.productos.map((p) => p.productId).filter(Boolean)}
                 value={form.fechaVisita}
-                onChange={(e) => update("fechaVisita", e.target.value)}
+                onChange={(fecha) => update("fechaVisita", fecha)}
+                whatsappUrl={WHATSAPP_URL}
+                error={fieldErrors.fechaVisita}
               />
-              <FieldError message={fieldErrors.fechaVisita} />
               <p className="hint">Fecha tentativa, sujeta a disponibilidad de cupos.</p>
             </div>
 

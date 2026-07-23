@@ -1,7 +1,8 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
-import { and, eq, eqBool, eqRaw } from "@cerocontacto/c4c-client";
+import { and, eq, eqBool, eqRaw, cmpRaw, or } from "@cerocontacto/c4c-client";
 import { SERVICE_AREA_ID, SERVICE_TYPE_ID } from "./types.js";
 import type {
+  CupoPorAreaConFecha,
   CupoPorAreaRoot,
   CuposEmpresaCuposEmpresaFecha,
   CuposEmpresaCuposGrupoMaterial,
@@ -80,6 +81,30 @@ export function dayOfWeekIndex(isoDate: string): number {
   return new Date(`${isoDate}T00:00:00Z`).getUTCDay();
 }
 
+export function addDaysIso(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Trae el registro completo de dias habilitados (los 7 flags) para una
+ * candidata+region, sin evaluar ningun dia en particular - permite
+ * reusar el mismo registro para varias fechas sin volver a consultar C4C.
+ */
+export async function getDiasHabilitados(
+  objectId: string,
+  regionCode: string,
+  cabRegion: string,
+  client: IC4CODataClient,
+): Promise<CuposEmpresaCuposEmpresaFecha | undefined> {
+  const filter = and(eq("zCupFechDepartamento", regionCode), eq("zCupFechRegin", cabRegion));
+  const results = await client.getCollection<CuposEmpresaCuposEmpresaFecha>(
+    `${CUST_NS}/cupos_empresa/BO_CuposEmpresaRootCollection('${objectId}')/BO_CuposEmpresaCuposEmpresaFecha?$filter=${encodeURIComponent(filter)}`,
+  );
+  return results[0];
+}
+
 /**
  * Se evalua sobre la FECHA DE VISITA SOLICITADA (no la fecha actual del
  * sistema) - el spec del proveedor es ambiguo en esto (su script de
@@ -95,11 +120,7 @@ export async function isDiaHabilitado(
   fechaVisita: string,
   client: IC4CODataClient,
 ): Promise<boolean> {
-  const filter = and(eq("zCupFechDepartamento", regionCode), eq("zCupFechRegin", cabRegion));
-  const results = await client.getCollection<CuposEmpresaCuposEmpresaFecha>(
-    `${CUST_NS}/cupos_empresa/BO_CuposEmpresaRootCollection('${objectId}')/BO_CuposEmpresaCuposEmpresaFecha?$filter=${encodeURIComponent(filter)}`,
-  );
-  const record = results[0];
+  const record = await getDiasHabilitados(objectId, regionCode, cabRegion, client);
   if (!record) return false;
 
   const field = DAY_FIELDS[dayOfWeekIndex(fechaVisita)];
@@ -132,4 +153,34 @@ export async function checkCapacidad(
   const record = results[0];
   if (!record || record.zCantidadDisponible <= 0) return undefined;
   return record;
+}
+
+/**
+ * Version en rango de checkCapacidad: en vez de una fecha y una empresa,
+ * trae en UNA sola consulta todos los registros de capacidad de varias
+ * empresas candidatas para un rango de fechas, ya filtrados por
+ * "mas de 10 cupos disponibles". Se usa para calcular que fechas mostrar
+ * habilitadas en el calendario, sin consultar C4C dia por dia.
+ */
+export async function checkCapacidadRango(
+  regionCode: string,
+  companyIds: string[],
+  desde: string,
+  hasta: string,
+  client: IC4CODataClient,
+): Promise<CupoPorAreaConFecha[]> {
+  if (companyIds.length === 0) return [];
+
+  const filter = and(
+    eq("zIdArea", SERVICE_AREA_ID),
+    eq("zDepartamento", regionCode),
+    eqBool("zActivo", true),
+    cmpRaw("zCantidadDisponible", "gt", "10"),
+    or(...companyIds.map((id) => eq("zIdEmpresa", id))),
+    cmpRaw("zFecha", "ge", `datetime'${desde}T00:00:00'`),
+    cmpRaw("zFecha", "le", `datetime'${hasta}T00:00:00'`),
+  );
+  return client.getCollection<CupoPorAreaConFecha>(
+    `${CUST_NS}/cupoporarea/BO_CupoPorAreaRootCollection?$filter=${encodeURIComponent(filter)}&$select=zCantidadDisponible,zIdEmpresa,zFecha`,
+  );
 }

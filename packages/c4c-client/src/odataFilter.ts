@@ -22,3 +22,14 @@ export function eqRaw(field: string, rawValue: string): string {
 export function and(...clauses: string[]): string {
   return clauses.filter(Boolean).join(" and ");
 }
+
+export function cmpRaw(field: string, operator: "gt" | "ge" | "le" | "lt", rawValue: string): string {
+  return `${field} ${operator} ${rawValue}`;
+}
+
+/** Junta clausulas con OR, envolviendo en parentesis solo si hay mas de una. */
+export function or(...clauses: string[]): string {
+  const filtered = clauses.filter(Boolean);
+  if (filtered.length <= 1) return filtered[0] ?? "";
+  return `(${filtered.join(" or ")})`;
+}

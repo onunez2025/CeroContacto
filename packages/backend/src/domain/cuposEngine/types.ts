@@ -101,3 +101,20 @@ export interface CupoPorAreaRoot {
   zCantidadDisponible: number;
   zIdRegistro: string;
 }
+
+export interface CupoPorAreaConFecha {
+  zCantidadDisponible: number;
+  zIdEmpresa: string;
+  /** Formato "YYYY-MM-DDT00:00:00" tal como lo devuelve C4C (OData v2 datetime sin offset). */
+  zFecha: string;
+}
+
+export interface FechasDisponiblesInput {
+  productIds: string[];
+  postalCode: string;
+  regionCode: string;
+  /** ISO date (YYYY-MM-DD), inclusive. */
+  desde: string;
+  /** ISO date (YYYY-MM-DD), inclusive. */
+  hasta: string;
+}

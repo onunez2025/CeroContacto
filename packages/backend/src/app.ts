@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { buildProductCatalogClientFromEnv } from "./config.js";
+import { buildC4CClientFromEnv, buildProductCatalogClientFromEnv } from "./config.js";
+import { getFechasDisponibles } from "./domain/cuposEngine/index.js";
 import { PRODUCT_CATEGORIES, searchProducts } from "./domain/productCatalog/index.js";
 import { handleSubmitServiceRequest } from "./handlers/submitServiceRequest.js";
 
@@ -39,6 +40,41 @@ export function createApp(): Express {
     } catch (err) {
       console.error("productos_search_failed", err);
       res.status(502).json({ error: "No pudimos buscar productos en este momento." });
+    }
+  });
+
+  app.get("/api/fechas-disponibles", async (req, res) => {
+    const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
+    const codigoPostal = typeof req.query.codigoPostal === "string" ? req.query.codigoPostal : "";
+    const productos =
+      typeof req.query.productos === "string" ? req.query.productos.split(",").filter(Boolean) : [];
+
+    if (!departamento || !codigoPostal || productos.length === 0) {
+      res.status(200).json({ fechas: [] });
+      return;
+    }
+
+    const desde = new Date();
+    desde.setUTCDate(desde.getUTCDate() + 1);
+    const hasta = new Date(desde);
+    hasta.setUTCDate(hasta.getUTCDate() + 41);
+
+    try {
+      const client = buildC4CClientFromEnv();
+      const fechas = await getFechasDisponibles(
+        {
+          productIds: productos,
+          postalCode: codigoPostal,
+          regionCode: departamento,
+          desde: desde.toISOString().slice(0, 10),
+          hasta: hasta.toISOString().slice(0, 10),
+        },
+        client,
+      );
+      res.status(200).json({ fechas });
+    } catch (err) {
+      console.error("fechas_disponibles_failed", err);
+      res.status(502).json({ error: "No pudimos consultar la disponibilidad en este momento." });
     }
   });
 

@@ -11,6 +11,12 @@ vi.mock("./infra/auditLog.js", () => ({
   recordSubmission: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { mockGetFechasDisponibles } = vi.hoisted(() => ({ mockGetFechasDisponibles: vi.fn() }));
+
+vi.mock("./domain/cuposEngine/index.js", () => ({
+  getFechasDisponibles: mockGetFechasDisponibles,
+}));
+
 import { createApp } from "./app.js";
 
 const direccion = {
@@ -51,6 +57,7 @@ describe("createApp", () => {
   afterEach(() => {
     process.env = { ...envBackup };
     mockOrchestration.mockReset();
+    mockGetFechasDisponibles.mockReset();
   });
 
   it("GET /health devuelve 200", async () => {
@@ -75,5 +82,24 @@ describe("createApp", () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ status: "Completed", ticketIds: ["138401"] });
+  });
+
+  it("GET /api/fechas-disponibles devuelve las fechas del motor de cupos", async () => {
+    mockGetFechasDisponibles.mockResolvedValue(["2026-08-03", "2026-08-05"]);
+
+    const res = await request(createApp()).get(
+      "/api/fechas-disponibles?departamento=15&codigoPostal=07021&productos=10054511",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ fechas: ["2026-08-03", "2026-08-05"] });
+  });
+
+  it("GET /api/fechas-disponibles sin parametros devuelve fechas vacias sin llamar a C4C", async () => {
+    const res = await request(createApp()).get("/api/fechas-disponibles");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ fechas: [] });
+    expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
   });
 });

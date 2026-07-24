@@ -189,5 +189,21 @@ export async function checkCapacidadRango(
   const results = await client.getCollection<CupoPorAreaConFecha>(
     `${CUST_NS}/cupoporarea/BO_CupoPorAreaRootCollection?$filter=${encodeURIComponent(filter)}&$select=zCantidadDisponible,zIdEmpresa,zFecha`,
   );
-  return results.filter((r) => r.zFecha.slice(0, 10) <= hasta);
+  return results
+    .map((r) => ({ ...r, zFecha: parseODataJsonDate(r.zFecha) }))
+    .filter((r) => r.zFecha <= hasta);
+}
+
+/**
+ * El JSON verbose de OData v2 (el formato que devuelve C4C) serializa los
+ * campos de fecha/hora como "/Date(<ms-epoch>)/", no como texto ISO -
+ * confirmado en vivo (checkCapacidadRango devolvia zFecha: "/Date(...)/"
+ * y por eso ninguna fecha real hacia match con el rango solicitado, un bug
+ * que solo se manifesto una vez que C4C QA tuvo datos de cupos futuros
+ * reales para probar). Convierte a "YYYY-MM-DD".
+ */
+function parseODataJsonDate(value: string): string {
+  const match = /\/Date\((\d+)\)\//.exec(value);
+  if (!match?.[1]) return value.slice(0, 10);
+  return new Date(Number(match[1])).toISOString().slice(0, 10);
 }

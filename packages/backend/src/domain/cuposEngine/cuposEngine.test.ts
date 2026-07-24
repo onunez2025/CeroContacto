@@ -258,6 +258,32 @@ describe("getFechasDisponibles", () => {
     expect(result).toEqual(["2026-08-03", "2026-08-05"]);
   });
 
+  it("interpreta correctamente zFecha en formato JSON verbose de OData v2 (/Date(ms)/)", async () => {
+    // Confirmado en vivo contra C4C QA real: el JSON que devuelve C4C serializa
+    // zFecha como "/Date(<ms-epoch>)/", no como texto ISO. Este test fija ese
+    // formato real para que un futuro cambio no reintroduzca el bug donde
+    // ninguna fecha real hacia match (solo se detecto una vez que C4C QA tuvo
+    // datos de cupos futuros reales para probar).
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
+      if (path.includes("BO_RegionRootCollection")) return [region];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
+      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("BO_CupoPorAreaRootCollection")) {
+        return [
+          // 2026-08-03T00:00:00Z en formato "/Date(ms-epoch)/" (lunes, con cupo).
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "/Date(1785715200000)/", zCantidadDisponible: 15 },
+        ];
+      }
+      return [];
+    });
+
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual(["2026-08-03"]);
+  });
+
   it("la consulta de capacidad filtra explicitamente por mas de 10 cupos disponibles", async () => {
     let capturedPath = "";
     const client = clientFromRouter(async (path) => {

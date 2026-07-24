@@ -29,9 +29,6 @@ const submission: ServiceRequestSubmission = {
   captchaToken: "token-123",
 };
 
-const region = { zRegRegin: "SOLE-ADICIONALES-LIMA", zRegcode: "LIMA_SOLE-ADICIONALES-LIMA_15063", zRegid: "776679E1" };
-const candidate = { ObjectID: "OBJ-A", zCupIdEmpresa: "1306EXT-3", zCupPrioridadNEw: 1, zCupDepart: "15", zCupactivo: true };
-
 function clientFromRouter(router: (path: string) => Promise<unknown[]>, postEntity = vi.fn()): IC4CODataClient {
   return {
     getCollection: vi.fn(router) as unknown as IC4CODataClient["getCollection"],
@@ -40,7 +37,9 @@ function clientFromRouter(router: (path: string) => Promise<unknown[]>, postEnti
   };
 }
 
-/** Simula un cliente existente (Caso 4) con producto ya registrado y cupo disponible. */
+/** Simula un cliente existente (Caso 4) con producto ya registrado. Sin
+ * motor de cupos: no hace falta simular region/empresas candidatas/dias
+ * habilitados/capacidad, ver nota en serviceRequestOrchestrator.ts. */
 function happyPathRouter(path: string): Promise<unknown[]> {
   if (path.includes("IndividualCustomerTaxNumberCollection")) {
     return Promise.resolve([{ ParentObjectID: "CLIOBJ", CustomerID: "1035063" }]);
@@ -51,20 +50,11 @@ function happyPathRouter(path: string): Promise<unknown[]> {
   if (path.includes("RegisteredProductCollection")) {
     return Promise.resolve([{ ObjectID: "PRODOBJ", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }]);
   }
-  if (path.includes("MaterialSalesProcessInformationCollection")) return Promise.resolve([{ ProductGroup2: "M74" }]);
-  if (path.includes("BO_RegionRootCollection")) return Promise.resolve([region]);
-  if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return Promise.resolve([candidate]);
-  if (path.includes("CuposTipoServicio")) return Promise.resolve([{ zIDTipoServicio: "CA_1" }]);
-  if (path.includes("CuposGrupoMaterial")) return Promise.resolve([{ zCupIdGrupoMaterial: "M74" }]);
-  if (path.includes("CuposEmpresaFecha")) return Promise.resolve([{ zCupFechLunes: true }]);
-  if (path.includes("BO_CupoPorAreaRootCollection")) {
-    return Promise.resolve([{ zCantidadDisponible: 5, zIdRegistro: "REG-A" }]);
-  }
   return Promise.resolve([]);
 }
 
 describe("runServiceRequestOrchestration", () => {
-  it("crea el ticket cuando todos los pasos tienen exito", async () => {
+  it("crea el ticket cuando todos los pasos tienen exito, sin datos de motor de cupos", async () => {
     const postEntity = vi.fn().mockResolvedValue({ ObjectID: "TICKETOBJ", ID: "138320" });
     const client = clientFromRouter(happyPathRouter, postEntity);
 
@@ -77,10 +67,14 @@ describe("runServiceRequestOrchestration", () => {
     const [, ticketBody] = ticketCall;
     expect(ticketBody.BuyerPartyID).toBe("1035063");
     expect(ticketBody.InstallationPointID).toBe("420434");
-    expect(ticketBody.zIDEmpresa_SDK).toBe("1306EXT-3");
-    expect(ticketBody.zIDRegistroCupoArea_SDK).toBe("REG-A");
     expect(ticketBody.zTicketIDProvinciacontent_SDK).toBe("128");
     expect(ticketBody.zTicketIDDistritocontent_SDK).toBe("1254");
+    // Sin motor de cupos: estos campos no deben enviarse en absoluto.
+    expect(ticketBody).not.toHaveProperty("zIDEmpresa_SDK");
+    expect(ticketBody).not.toHaveProperty("Z_CabRegion_KUT");
+    expect(ticketBody).not.toHaveProperty("zaRegionFSM_ID_KUT");
+    expect(ticketBody).not.toHaveProperty("zaRegionFSM_KUT");
+    expect(ticketBody).not.toHaveProperty("zIDRegistroCupoArea_SDK");
 
     const noteCall = postEntity.mock.calls.find(([path]) => (path as string).includes("ServiceRequestTextCollection")) as [
       string,
@@ -91,7 +85,7 @@ describe("runServiceRequestOrchestration", () => {
     expect(noteCall[1].Text).toContain("Lugar de compra: SODIMAC PERU S.A.");
   });
 
-  it("combo multi-producto: crea un producto registrado y un ticket por cada item, con el mismo cupo/contratista", async () => {
+  it("combo multi-producto: crea un producto registrado y un ticket por cada item", async () => {
     const comboSubmission: ServiceRequestSubmission = {
       ...submission,
       productos: [
@@ -133,25 +127,6 @@ describe("runServiceRequestOrchestration", () => {
       ([path]) => (path as string).includes("ServiceRequestCollection") && !(path as string).includes("TextCollection"),
     );
     expect(ticketCalls).toHaveLength(3);
-    for (const [, body] of ticketCalls) {
-      const b = body as Record<string, unknown>;
-      expect(b.zIDEmpresa_SDK).toBe("1306EXT-3");
-      expect(b.zIDRegistroCupoArea_SDK).toBe("REG-A");
-    }
-  });
-
-  it("devuelve Failed con mensaje traducido si el motor de cupos no encuentra capacidad", async () => {
-    const client = clientFromRouter((path) => {
-      if (path.includes("BO_CupoPorAreaRootCollection")) return Promise.resolve([{ zCantidadDisponible: 0, zIdRegistro: "X" }]);
-      return happyPathRouter(path);
-    });
-
-    const result = await runServiceRequestOrchestration(submission, client);
-
-    expect(result).toEqual({
-      status: "Failed",
-      errorMessage: "No hay cupos disponibles para la fecha solicitada. Por favor intenta con otra fecha.",
-    });
   });
 
   it("traduce un C4CError de regla de negocio (400 ABSL) a un Failed legible", async () => {

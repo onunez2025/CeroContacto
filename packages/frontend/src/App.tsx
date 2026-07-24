@@ -8,7 +8,6 @@ import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { PERU_PROVINCIAS } from "./peruProvincias.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
-import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 
 interface ProductoForm {
   numeroSerie: string;
@@ -597,17 +596,24 @@ export default function App() {
           <fieldset>
             <legend>Fecha de visita</legend>
             <div className="field">
-              <label>Fecha deseada</label>
-              <FechaDisponibleCalendar
-                departamento={form.departamento}
-                codigoPostal={form.codigoPostal}
-                productIds={form.productos.map((p) => p.productId).filter(Boolean)}
+              {/*
+                Calendario con fechas reales deshabilitado temporalmente:
+                produccion todavia no tiene desplegados los servicios de C4C
+                que necesita (cupoporarea/cust_producto). Vuelve a un campo
+                de fecha libre - el asesor confirma la capacidad manualmente
+                despues, igual que hace hoy. Para reactivar, restaurar el
+                <FechaDisponibleCalendar /> que se uso aca (ver historial de
+                git) en cuanto esos servicios esten en produccion.
+              */}
+              <label htmlFor="fechaVisita">Fecha deseada</label>
+              <input
+                id="fechaVisita"
+                type="date"
                 value={form.fechaVisita}
-                onChange={(fecha) => update("fechaVisita", fecha)}
-                whatsappUrl={WHATSAPP_URL}
-                error={fieldErrors.fechaVisita}
+                onChange={(e) => update("fechaVisita", e.target.value)}
               />
-              <p className="hint">Fecha tentativa, sujeta a disponibilidad de cupos.</p>
+              <FieldError message={fieldErrors.fechaVisita} />
+              <p className="hint">Fecha tentativa, sujeta a disponibilidad de cupos - un asesor confirmara la fecha y el tecnico asignado por WhatsApp o email.</p>
             </div>
 
             <div className="field">

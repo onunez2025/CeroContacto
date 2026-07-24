@@ -1,6 +1,5 @@
 import { C4CError, type IC4CODataClient } from "@cerocontacto/c4c-client";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
-import { assignCupo, type CuposEngineFailureReason } from "../domain/cuposEngine/index.js";
 import { resolveCustomer, type CustomerResolutionInput } from "../domain/customerResolution/index.js";
 import { resolveRegisteredProduct } from "../domain/registeredProduct/index.js";
 import { createTicket } from "../domain/ticketCreation/index.js";
@@ -52,20 +51,24 @@ function buildComentarioParaC4C(submission: ServiceRequestSubmission): string {
   return [submission.comentario?.trim(), medio, lugarCompra].filter(Boolean).join("\n\n");
 }
 
-const CUPOS_FAILURE_MESSAGES: Record<CuposEngineFailureReason, string> = {
-  NO_PRODUCT_GROUP: "No pudimos identificar el modelo de producto indicado. Por favor verifica el codigo e intenta de nuevo.",
-  NO_REGION_MATCH: "No encontramos cobertura de servicio para tu codigo postal.",
-  NO_CANDIDATE_COMPANY: "No hay contratistas de instalacion disponibles en tu zona por el momento.",
-  NO_CAPACITY: "No hay cupos disponibles para la fecha solicitada. Por favor intenta con otra fecha.",
-};
-
 /**
  * Orquesta el flujo completo de un envio del formulario: resolucion de
- * cliente (4 casos) -> producto registrado -> motor de cupos -> creacion
- * de ticket. Funcion pura de TypeScript, sin dependencia de Azure
- * Functions/Durable - el wiring a un orquestador Durable (checkpointing,
- * reintentos por actividad) se hace en la capa de Azure Functions,
- * envolviendo esta misma funcion como actividad(es).
+ * cliente (4 casos) -> producto registrado -> creacion de ticket. Funcion
+ * pura de TypeScript, sin dependencia de Azure Functions/Durable - el
+ * wiring a un orquestador Durable (checkpointing, reintentos por
+ * actividad) se hace en la capa de Azure Functions, envolviendo esta
+ * misma funcion como actividad(es).
+ *
+ * El motor de cupos (packages/backend/src/domain/cuposEngine) esta
+ * deshabilitado aca temporalmente: produccion todavia no tiene
+ * desplegados los servicios custom que necesita ("cupoporarea" y
+ * "cust_producto" - confirmado en vivo el 2026-07-24, ambos responden
+ * "No implementation for service"). El ticket se crea sin
+ * contratista/region asignados automaticamente; el asesor los asigna
+ * manualmente en C4C despues, igual que hace hoy sin este formulario.
+ * Reactivar llamando a assignCupo en cuanto C4C transporte esos servicios
+ * a produccion (ver docs/superpowers/specs del feature de fechas
+ * disponibles para el detalle completo).
  */
 export async function runServiceRequestOrchestration(
   submission: ServiceRequestSubmission,
@@ -91,23 +94,8 @@ export async function runServiceRequestOrchestration(
       products.push({ productId: producto.productId, ...product });
     }
 
-    // El motor de cupos corre UNA sola vez para toda la solicitud: misma
-    // visita, mismo contratista/fecha para todos los productos.
-    const cupo = await assignCupo(
-      {
-        productIds: submission.productos.map((p) => p.productId),
-        postalCode: customer.postalCode,
-        regionCode: customer.regionCode,
-        fechaVisita: submission.fechaVisita,
-      },
-      client,
-    );
-
-    if (!cupo.ok) {
-      return { status: "Failed", errorMessage: CUPOS_FAILURE_MESSAGES[cupo.reason] };
-    }
-
-    // Un Service Request por producto, todos ligados al mismo cupo/contratista.
+    // Un Service Request por producto. Sin motor de cupos, todos quedan sin
+    // contratista/region asignados automaticamente (ver nota arriba).
     const comentarioParaC4C = buildComentarioParaC4C(submission);
     const ticketIds: string[] = [];
     for (const product of products) {
@@ -116,12 +104,7 @@ export async function runServiceRequestOrchestration(
           buyerPartyId: customer.buyerPartyId,
           productId: product.productId,
           installationPointId: product.installationPointId,
-          cabRegion: cupo.cabRegion,
-          companyId: cupo.companyId,
           fechaVisita: submission.fechaVisita,
-          regionFsmId: cupo.regionFsmId,
-          regionFsm: cupo.regionFsm,
-          reservationId: cupo.reservationId,
           provincia: submission.direccion.provincia,
           distrito: submission.direccion.distrito,
           comentario: comentarioParaC4C,

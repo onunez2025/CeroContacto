@@ -53,16 +53,20 @@ export async function createTicket(
     ProductID: input.productId,
     InstallationPointID: input.installationPointId,
     ServiceIssueCategoryID: input.serviceIssueCategoryId ?? SERVICE_TYPE_ID,
-    Z_CabRegion_KUT: input.cabRegion,
     zTicketArea_SDK: SERVICE_AREA_ID,
-    zIDEmpresa_SDK: input.companyId,
     RequestInitialReceiptdatetimeZoneCode: "UTC-5",
     RequestInitialReceiptdatetimecontent: input.fechaVisita,
-    zaRegionFSM_ID_KUT: input.regionFsmId,
-    zaRegionFSM_KUT: input.regionFsm,
-    zIDRegistroCupoArea_SDK: input.reservationId,
     zTicketIDProvinciacontent_SDK: input.provincia,
     zTicketIDDistritocontent_SDK: input.distrito,
+    // Campos del contratista/region asignados por el motor de cupos - se
+    // omiten por completo (no se envian ni vacios) mientras ese motor este
+    // deshabilitado, ver nota en TicketCreationInput. zaRegionFSM_ID_KUT en
+    // particular ni siquiera existe en el customizing de produccion todavia.
+    ...(input.cabRegion ? { Z_CabRegion_KUT: input.cabRegion } : {}),
+    ...(input.companyId ? { zIDEmpresa_SDK: input.companyId } : {}),
+    ...(input.regionFsmId ? { zaRegionFSM_ID_KUT: input.regionFsmId } : {}),
+    ...(input.regionFsm ? { zaRegionFSM_KUT: input.regionFsm } : {}),
+    ...(input.reservationId ? { zIDRegistroCupoArea_SDK: input.reservationId } : {}),
     ServiceRequestItem: [DEFAULT_SERVICE_ITEM],
   });
 

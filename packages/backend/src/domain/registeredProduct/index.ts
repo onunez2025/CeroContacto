@@ -90,7 +90,9 @@ export async function resolveRegisteredProduct(
     House: input.direccion.numero,
     Street: input.direccion.direccion,
     AddressLine5: input.direccion.referencia,
-    Z_ReferenciaAdicional_KUT: input.direccion.referenciaAdicional ?? "",
+    // input.direccion.referenciaAdicional se omite: produccion no tiene zaReferenciaAdicional_KUT
+    // en RegisteredProduct (confirmado via $metadata, 2026-07-24); si en el futuro se agrega el
+    // campo alla, se puede reintroducir aqui.
     PostalCode: input.direccion.codigoPostal,
     TimeZoneCode: "UTC-5",
     Floor: input.direccion.piso ?? "",

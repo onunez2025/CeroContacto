@@ -1,4 +1,4 @@
-import type { ServiceRequestSubmission } from "@cerocontacto/shared";
+import type { Address, ServiceRequestSubmission } from "@cerocontacto/shared";
 
 export interface SubmitSuccess {
   status: "Completed";
@@ -83,4 +83,37 @@ export async function getFechasDisponibles(
     throw new ApiError(body?.error ?? "No pudimos cargar las fechas disponibles.");
   }
   return body?.fechas ?? [];
+}
+
+export interface CustomerLookupData {
+  nombres?: string;
+  apellidos?: string;
+  razonSocial?: string;
+  telefono: string;
+  email: string;
+  direccion: Partial<Address>;
+}
+
+export interface CustomerLookupResult {
+  found: boolean;
+  datos?: CustomerLookupData;
+}
+
+/**
+ * Busca si el cliente ya existe en C4C por su documento, para autocompletar
+ * el formulario. Nunca lanza por "no encontrado" (found:false es un
+ * resultado valido) - solo por error real de red/servidor, y el caller
+ * decide ignorarlo en silencio.
+ */
+export async function lookupCustomer(
+  tipoDocumento: "DNI" | "CE" | "RUC",
+  numeroDocumento: string,
+): Promise<CustomerLookupResult> {
+  const params = new URLSearchParams({ tipoDocumento, numeroDocumento });
+  const res = await fetch(`/api/clientes/lookup?${params.toString()}`);
+  if (!res.ok) {
+    throw new ApiError("No pudimos buscar tus datos.");
+  }
+  const body = (await res.json().catch(() => undefined)) as CustomerLookupResult | undefined;
+  return body ?? { found: false };
 }

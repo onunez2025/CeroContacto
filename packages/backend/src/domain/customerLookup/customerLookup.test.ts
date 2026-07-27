@@ -1,6 +1,8 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { describe, expect, it, vi } from "vitest";
 import { lookupIndividual } from "./individual.js";
+import { lookupCustomer } from "./index.js";
+import { lookupEmpresa } from "./empresa.js";
 
 function mockClient(overrides: Partial<IC4CODataClient> = {}): IC4CODataClient {
   return {
@@ -85,5 +87,45 @@ describe("lookupIndividual", () => {
 
     const filterUrl = (getCollection.mock.calls[0] as [string])[0];
     expect(decodeURIComponent(filterUrl)).toContain("TaxTypeCode eq '5'");
+  });
+});
+
+describe("lookupEmpresa", () => {
+  it("empresa encontrada: devuelve found:true con razonSocial", async () => {
+    const getCollection = vi
+      .fn()
+      .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", AccountID: "1038018" }])
+      .mockResolvedValueOnce([{ ObjectID: "OBJ1", AccountID: "1038018", Name: "SERVICIOS MEDICOS M'VAPE S.A.C.", Phone: "+51942568111", Email: "empresa@example.com" }])
+      .mockResolvedValueOnce([{ StateCode: "15", StreetPostalCode: "07001" }]);
+    const client = mockClient({ getCollection });
+
+    const result = await lookupEmpresa("20525512348", client);
+
+    expect(result.found).toBe(true);
+    expect(result.datos?.razonSocial).toBe("SERVICIOS MEDICOS M'VAPE S.A.C.");
+    expect(result.datos?.direccion).toEqual({ departamento: "15", codigoPostal: "07001" });
+    expect(client.postEntity).not.toHaveBeenCalled();
+  });
+
+  it("empresa no encontrada: devuelve found:false", async () => {
+    const client = mockClient({ getCollection: vi.fn().mockResolvedValueOnce([]) });
+
+    const result = await lookupEmpresa("20999999999", client);
+
+    expect(result).toEqual({ found: false });
+  });
+});
+
+describe("lookupCustomer (dispatcher)", () => {
+  it("RUC despacha a lookupEmpresa", async () => {
+    const client = mockClient({ getCollection: vi.fn().mockResolvedValueOnce([]) });
+    const result = await lookupCustomer("RUC", "20525512348", client);
+    expect(result).toEqual({ found: false });
+  });
+
+  it("DNI despacha a lookupIndividual", async () => {
+    const client = mockClient({ getCollection: vi.fn().mockResolvedValueOnce([]) });
+    const result = await lookupCustomer("DNI", "15619884", client);
+    expect(result).toEqual({ found: false });
   });
 });

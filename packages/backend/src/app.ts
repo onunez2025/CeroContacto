@@ -1,9 +1,11 @@
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { buildC4CClientFromEnv, buildProductCatalogClientFromEnv } from "./config.js";
+import { lookupCustomer, CustomerLookupQuerySchema } from "./domain/customerLookup/index.js";
 import { getFechasDisponibles } from "./domain/cuposEngine/index.js";
 import { PRODUCT_CATEGORIES, searchProducts } from "./domain/productCatalog/index.js";
 import { handleSubmitServiceRequest } from "./handlers/submitServiceRequest.js";
+import { createRateLimiter } from "./infra/rateLimiter.js";
 
 export function createApp(): Express {
   const app = express();
@@ -75,6 +77,25 @@ export function createApp(): Express {
     } catch (err) {
       console.error("fechas_disponibles_failed", err);
       res.status(502).json({ error: "No pudimos consultar la disponibilidad en este momento." });
+    }
+  });
+
+  const customerLookupRateLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
+
+  app.get("/api/clientes/lookup", customerLookupRateLimiter, async (req, res) => {
+    const parsed = CustomerLookupQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Parametros invalidos" });
+      return;
+    }
+
+    try {
+      const client = buildC4CClientFromEnv();
+      const result = await lookupCustomer(parsed.data.tipoDocumento, parsed.data.numeroDocumento, client);
+      res.status(200).json(result);
+    } catch (err) {
+      console.error("customer_lookup_failed", err);
+      res.status(502).json({ error: "No pudimos consultar tus datos en este momento." });
     }
   });
 

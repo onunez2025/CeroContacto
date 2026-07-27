@@ -17,6 +17,13 @@ vi.mock("./domain/cuposEngine/index.js", () => ({
   getFechasDisponibles: mockGetFechasDisponibles,
 }));
 
+const { mockLookupCustomer } = vi.hoisted(() => ({ mockLookupCustomer: vi.fn() }));
+
+vi.mock("./domain/customerLookup/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./domain/customerLookup/index.js")>();
+  return { ...actual, lookupCustomer: mockLookupCustomer };
+});
+
 import { createApp } from "./app.js";
 
 const direccion = {
@@ -58,6 +65,7 @@ describe("createApp", () => {
     process.env = { ...envBackup };
     mockOrchestration.mockReset();
     mockGetFechasDisponibles.mockReset();
+    mockLookupCustomer.mockReset();
   });
 
   it("GET /health devuelve 200", async () => {
@@ -101,5 +109,46 @@ describe("createApp", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ fechas: [] });
     expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/clientes/lookup con cliente encontrado devuelve found:true", async () => {
+    mockLookupCustomer.mockResolvedValue({
+      found: true,
+      datos: { nombres: "ALVARO", apellidos: "SEBASTIANI", telefono: "+51942568111", email: "cliente@example.com", direccion: {} },
+    });
+
+    const res = await request(createApp()).get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884");
+
+    expect(res.status).toBe(200);
+    expect(res.body.found).toBe(true);
+    expect(mockLookupCustomer).toHaveBeenCalledWith("DNI", "15619884", expect.anything());
+  });
+
+  it("GET /api/clientes/lookup sin cliente encontrado devuelve found:false", async () => {
+    mockLookupCustomer.mockResolvedValue({ found: false });
+
+    const res = await request(createApp()).get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=99999999");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ found: false });
+  });
+
+  it("GET /api/clientes/lookup con tipoDocumento invalido devuelve 400 sin llamar a C4C", async () => {
+    const res = await request(createApp()).get("/api/clientes/lookup?tipoDocumento=PASAPORTE&numeroDocumento=123");
+
+    expect(res.status).toBe(400);
+    expect(mockLookupCustomer).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/clientes/lookup responde 429 tras superar el limite de 10 solicitudes por minuto de la misma IP", async () => {
+    mockLookupCustomer.mockResolvedValue({ found: false });
+    const app = createApp();
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884");
+      expect(res.status).toBe(200);
+    }
+    const res = await request(app).get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884");
+    expect(res.status).toBe(429);
   });
 });

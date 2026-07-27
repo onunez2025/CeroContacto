@@ -10,6 +10,14 @@ import { createRateLimiter } from "./infra/rateLimiter.js";
 export function createApp(): Express {
   const app = express();
   app.use(cors());
+  // Confiar en los 2 saltos de infraestructura frente al proceso Node (Traefik y
+  // nginx, ver nginx/frontend.conf), que reenvian el X-Forwarded-For real del
+  // cliente. Sin esto, Express ignora X-Forwarded-For y req.ip resuelve siempre
+  // a la direccion interna de Docker, haciendo que el rate limiter por IP
+  // (rateLimiter.ts) se comparta entre TODOS los visitantes. Usamos un numero
+  // fijo de saltos (no `true`) para no confiar en un X-Forwarded-For arbitrario
+  // que el propio cliente podria falsificar para saltarse el limite.
+  app.set("trust proxy", 2);
   // 30mb: hasta 4 productos x 6 fotos redimensionadas (~800kb c/u como base64) en un solo POST.
   app.use(express.json({ limit: "30mb" }));
 

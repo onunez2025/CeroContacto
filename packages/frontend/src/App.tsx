@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema, isValidCe, isValidDni, isValidRuc } from "@cerocontacto/shared";
 import { PERU_DISTRITOS } from "@cerocontacto/shared";
@@ -181,6 +181,11 @@ export default function App() {
   const [step, setStep] = useState(1);
   const [customerLookupStatus, setCustomerLookupStatus] = useState<"idle" | "loading" | "found">("idle");
   const [lookedUpDocumento, setLookedUpDocumento] = useState<string | null>(null);
+  const numeroDocumentoRef = useRef(form.numeroDocumento);
+
+  useEffect(() => {
+    numeroDocumentoRef.current = form.numeroDocumento;
+  }, [form.numeroDocumento]);
 
   const DOCUMENT_VALIDATORS: Record<FormState["tipoDocumento"], (v: string) => boolean> = {
     DNI: isValidDni,
@@ -218,6 +223,10 @@ export default function App() {
         setCustomerLookupStatus("idle");
         return;
       }
+      // Descartar respuestas obsoletas: si el usuario ya corrigio el numero de
+      // documento y desenfoco de nuevo mientras esta busqueda seguia en vuelo,
+      // no debemos autocompletar el formulario con los datos de otra persona.
+      if (numeroDocumentoRef.current !== numeroDocumento) return;
       const d = result.datos;
       setForm((prev) => ({
         ...prev,
@@ -239,6 +248,11 @@ export default function App() {
       setCustomerLookupStatus("found");
     } catch (err) {
       console.error("customer_lookup_failed", err);
+      // Si mientras esta busqueda estaba en vuelo el usuario ya corrigio el
+      // numero de documento (y potencialmente una busqueda mas nueva ya
+      // encontro datos), no pisar ese estado con un "idle" de esta respuesta
+      // obsoleta.
+      if (numeroDocumentoRef.current !== numeroDocumento) return;
       setCustomerLookupStatus("idle");
     }
   }

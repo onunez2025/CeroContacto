@@ -151,4 +151,25 @@ describe("createApp", () => {
     const res = await request(app).get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884");
     expect(res.status).toBe(429);
   });
+
+  it("el limite de 429 es por IP (X-Forwarded-For) y no se comparte entre visitantes distintos", async () => {
+    mockLookupCustomer.mockResolvedValue({ found: false });
+    const app = createApp();
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884")
+        .set("X-Forwarded-For", "1.2.3.4");
+      expect(res.status).toBe(200);
+    }
+    const resAgotado = await request(app)
+      .get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884")
+      .set("X-Forwarded-For", "1.2.3.4");
+    expect(resAgotado.status).toBe(429);
+
+    const resOtraIp = await request(app)
+      .get("/api/clientes/lookup?tipoDocumento=DNI&numeroDocumento=15619884")
+      .set("X-Forwarded-For", "5.6.7.8");
+    expect(resOtraIp.status).toBe(200);
+  });
 });

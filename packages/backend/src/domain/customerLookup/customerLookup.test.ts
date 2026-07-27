@@ -118,14 +118,22 @@ describe("lookupEmpresa", () => {
 
 describe("lookupCustomer (dispatcher)", () => {
   it("RUC despacha a lookupEmpresa", async () => {
-    const client = mockClient({ getCollection: vi.fn().mockResolvedValueOnce([]) });
+    const getCollection = vi.fn().mockResolvedValueOnce([]);
+    const client = mockClient({ getCollection });
     const result = await lookupCustomer("RUC", "20525512348", client);
     expect(result).toEqual({ found: false });
+
+    const filterUrl = (getCollection.mock.calls[0] as [string])[0];
+    expect(decodeURIComponent(filterUrl)).toContain("CorporateAccountTaxNumberCollection");
   });
 
   it("DNI despacha a lookupIndividual", async () => {
-    const client = mockClient({ getCollection: vi.fn().mockResolvedValueOnce([]) });
+    const getCollection = vi.fn().mockResolvedValueOnce([]);
+    const client = mockClient({ getCollection });
     const result = await lookupCustomer("DNI", "15619884", client);
     expect(result).toEqual({ found: false });
+
+    const filterUrl = (getCollection.mock.calls[0] as [string])[0];
+    expect(decodeURIComponent(filterUrl)).toContain("IndividualCustomerTaxNumberCollection");
   });
 });

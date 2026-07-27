@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
-import { ServiceRequestSubmissionSchema } from "@cerocontacto/shared";
+import { ServiceRequestSubmissionSchema, isValidCe, isValidDni, isValidRuc } from "@cerocontacto/shared";
 import { PERU_DISTRITOS } from "@cerocontacto/shared";
-import { ApiError, submitServiceRequest, type SubmitResult } from "./api.js";
+import { ApiError, lookupCustomer, submitServiceRequest, type SubmitResult } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { PERU_PROVINCIAS } from "./peruProvincias.js";
@@ -179,6 +179,78 @@ export default function App() {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [step, setStep] = useState(1);
+  const [customerLookupStatus, setCustomerLookupStatus] = useState<"idle" | "loading" | "found">("idle");
+  const [lookedUpDocumento, setLookedUpDocumento] = useState<string | null>(null);
+
+  const DOCUMENT_VALIDATORS: Record<FormState["tipoDocumento"], (v: string) => boolean> = {
+    DNI: isValidDni,
+    CE: isValidCe,
+    RUC: isValidRuc,
+  };
+
+  function clearAutofilledFields() {
+    setForm((prev) => ({
+      ...prev,
+      nombres: "",
+      apellidos: "",
+      razonSocial: "",
+      telefono: "",
+      email: "",
+      departamento: "",
+      provincia: "",
+      distrito: "",
+      direccion: "",
+      numero: "",
+      piso: "",
+      referencia: "",
+      codigoPostal: "",
+    }));
+  }
+
+  async function handleDocumentoBlur() {
+    const numeroDocumento = form.numeroDocumento.trim();
+    if (!DOCUMENT_VALIDATORS[form.tipoDocumento](numeroDocumento)) return;
+
+    setCustomerLookupStatus("loading");
+    try {
+      const result = await lookupCustomer(form.tipoDocumento, numeroDocumento);
+      if (!result.found || !result.datos) {
+        setCustomerLookupStatus("idle");
+        return;
+      }
+      const d = result.datos;
+      setForm((prev) => ({
+        ...prev,
+        ...(d.nombres ? { nombres: d.nombres } : {}),
+        ...(d.apellidos ? { apellidos: d.apellidos } : {}),
+        ...(d.razonSocial ? { razonSocial: d.razonSocial } : {}),
+        ...(d.telefono ? { telefono: d.telefono } : {}),
+        ...(d.email ? { email: d.email } : {}),
+        ...(d.direccion.departamento ? { departamento: d.direccion.departamento } : {}),
+        ...(d.direccion.provincia ? { provincia: d.direccion.provincia } : {}),
+        ...(d.direccion.distrito ? { distrito: d.direccion.distrito } : {}),
+        ...(d.direccion.direccion ? { direccion: d.direccion.direccion } : {}),
+        ...(d.direccion.numero ? { numero: d.direccion.numero } : {}),
+        ...(d.direccion.piso ? { piso: d.direccion.piso } : {}),
+        ...(d.direccion.referencia ? { referencia: d.direccion.referencia } : {}),
+        ...(d.direccion.codigoPostal ? { codigoPostal: d.direccion.codigoPostal } : {}),
+      }));
+      setLookedUpDocumento(numeroDocumento);
+      setCustomerLookupStatus("found");
+    } catch (err) {
+      console.error("customer_lookup_failed", err);
+      setCustomerLookupStatus("idle");
+    }
+  }
+
+  function handleDocumentoChange(value: string) {
+    if (lookedUpDocumento !== null && value !== lookedUpDocumento) {
+      clearAutofilledFields();
+      setLookedUpDocumento(null);
+      setCustomerLookupStatus("idle");
+    }
+    update("numeroDocumento", value);
+  }
 
   function goToStep(next: number) {
     setStep(next);
@@ -320,9 +392,12 @@ export default function App() {
                 id="numeroDocumento"
                 type="text"
                 value={form.numeroDocumento}
-                onChange={(e) => update("numeroDocumento", e.target.value)}
+                onChange={(e) => handleDocumentoChange(e.target.value)}
+                onBlur={handleDocumentoBlur}
               />
               <FieldError message={fieldErrors.numeroDocumento} />
+              {customerLookupStatus === "loading" && <p className="hint">Buscando...</p>}
+              {customerLookupStatus === "found" && <p className="hint">Datos encontrados, puedes corregirlos si cambiaron.</p>}
             </div>
 
             {form.tipoDocumento === "RUC" ? (

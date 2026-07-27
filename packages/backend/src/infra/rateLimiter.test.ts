@@ -46,14 +46,16 @@ describe("createRateLimiter", () => {
 
   it("vuelve a permitir despues de que expira la ventana", () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    const limiter = createRateLimiter({ windowMs: 60_000, max: 1 });
-    limiter(fakeReq("5.5.5.5"), fakeRes(), vi.fn());
+    try {
+      const limiter = createRateLimiter({ windowMs: 60_000, max: 1 });
+      limiter(fakeReq("5.5.5.5"), fakeRes(), vi.fn());
 
-    nowSpy.mockReturnValue(1_000_000 + 60_001);
-    const next = vi.fn();
-    limiter(fakeReq("5.5.5.5"), fakeRes(), next);
-    expect(next).toHaveBeenCalledTimes(1);
-
-    nowSpy.mockRestore();
+      nowSpy.mockReturnValue(1_000_000 + 60_001);
+      const next = vi.fn();
+      limiter(fakeReq("5.5.5.5"), fakeRes(), next);
+      expect(next).toHaveBeenCalledTimes(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

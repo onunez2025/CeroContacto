@@ -17,10 +17,21 @@ function getPool(): Promise<sql.ConnectionPool> {
     const server = process.env.SQL_SERVER;
     const database = process.env.SQL_DATABASE;
     const user = process.env.SQL_USER;
-    const password = process.env.SQL_PASSWORD;
+    /**
+     * Dokploy trunca SQL_PASSWORD en el primer "#" (lo interpreta como
+     * inicio de comentario al inyectar la variable), cortando la
+     * contraseña real de forma silenciosa (confirmado en vivo: llegaba
+     * "@s0le@dm1nAI" en vez de "@s0le@dm1nAI#82,"). No se puede rotar esa
+     * contraseña (la usa TI en otros sistemas), asi que en produccion se
+     * define SQL_PASSWORD_B64 (la misma contraseña en Base64, que no
+     * contiene "#") y se decodifica aqui. En desarrollo local se sigue
+     * usando SQL_PASSWORD tal cual, sin este problema.
+     */
+    const passwordB64 = process.env.SQL_PASSWORD_B64;
+    const password = passwordB64 ? Buffer.from(passwordB64, "base64").toString("utf-8") : process.env.SQL_PASSWORD;
 
     if (!server || !database || !user || !password) {
-      throw new Error("Faltan variables de entorno SQL_SERVER/SQL_DATABASE/SQL_USER/SQL_PASSWORD");
+      throw new Error("Faltan variables de entorno SQL_SERVER/SQL_DATABASE/SQL_USER/(SQL_PASSWORD o SQL_PASSWORD_B64)");
     }
 
     poolPromise = sql

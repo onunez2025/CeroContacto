@@ -17,6 +17,31 @@ import type { CuposEngineInput, CuposEngineResult, FechasDisponiblesInput } from
 
 export * from "./types.js";
 
+const FECHAS_DISPONIBLES_CACHE_TTL_MS = 10 * 60_000;
+
+interface FechasDisponiblesCacheEntry {
+  data: string[];
+  expiresAt: number;
+}
+
+/**
+ * Cache en memoria del resultado completo de getFechasDisponibles, por
+ * combinacion exacta de departamento+codigoPostal+rango de fechas.
+ * Confirmado en vivo (2026-07-30): un departamento con ~20 empresas
+ * candidatas tarda ~4s en frio (region + candidatas + Promise.all de dias
+ * habilitados + capacidad, cada paso ~0.8-1s) - paralelizar las consultas
+ * por empresa si ayuda (bajo de ~21s a ~4s frente a hacerlas en serie).
+ * Este cache evita repetir incluso esos ~4s para el mismo departamento y
+ * codigo postal dentro de la ventana de 10 min (confirmado: ~4s en frio,
+ * ~60ms en caliente).
+ */
+const fechasDisponiblesCache = new Map<string, FechasDisponiblesCacheEntry>();
+
+/** Solo para tests: limpia el cache en memoria entre casos. */
+export function clearFechasDisponiblesCacheForTests(): void {
+  fechasDisponiblesCache.clear();
+}
+
 /**
  * Motor de cupos (7 pasos). A diferencia del Postman del proveedor, que
  * se detiene en la primera empresa candidata, este motor itera todas las
@@ -99,6 +124,17 @@ export async function assignCupo(input: CuposEngineInput, client: IC4CODataClien
  * para restringir el calendario del formulario; no reserva nada.
  */
 export async function getFechasDisponibles(input: FechasDisponiblesInput, client: IC4CODataClient): Promise<string[]> {
+  const cacheKey = `${input.postalCode}|${input.regionCode}|${input.desde}|${input.hasta}`;
+  const now = Date.now();
+  const cached = fechasDisponiblesCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.data;
+
+  const fechasDisponibles = await computeFechasDisponibles(input, client);
+  fechasDisponiblesCache.set(cacheKey, { data: fechasDisponibles, expiresAt: now + FECHAS_DISPONIBLES_CACHE_TTL_MS });
+  return fechasDisponibles;
+}
+
+async function computeFechasDisponibles(input: FechasDisponiblesInput, client: IC4CODataClient): Promise<string[]> {
   const region = await getRegionMeta(input.postalCode, client);
   if (!region?.zRegRegin) return [];
   const cabRegion = region.zRegRegin;
@@ -106,11 +142,15 @@ export async function getFechasDisponibles(input: FechasDisponiblesInput, client
   const candidates = await getCandidateCompanies(input.regionCode, client);
   if (candidates.length === 0) return [];
 
-  const elegibles: { zCupIdEmpresa: string; dias: Awaited<ReturnType<typeof getDiasHabilitados>> }[] = [];
-  for (const candidate of candidates) {
-    const dias = await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client);
-    elegibles.push({ zCupIdEmpresa: candidate.zCupIdEmpresa, dias });
-  }
+  // Consultas independientes entre si - en paralelo en vez de secuenciales
+  // (confirmado en vivo, 2026-07-30: ~20 candidatas tardaban ~21s en serie,
+  // ~1.2s en paralelo, acotado por la mas lenta en vez de la suma de todas).
+  const elegibles = await Promise.all(
+    candidates.map(async (candidate) => ({
+      zCupIdEmpresa: candidate.zCupIdEmpresa,
+      dias: await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client),
+    })),
+  );
 
   const cupos = await checkCapacidadRango(
     input.regionCode,

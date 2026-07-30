@@ -1,8 +1,15 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
-import { describe, expect, it, vi } from "vitest";
-import { assignCupo, getFechasDisponibles } from "./index.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { assignCupo, clearFechasDisponiblesCacheForTests, getFechasDisponibles } from "./index.js";
 import { dayOfWeekIndex } from "./steps.js";
 import type { CuposEngineInput, FechasDisponiblesInput } from "./types.js";
+
+beforeEach(() => {
+  // El cache de fechas disponibles es un Map a nivel de modulo - sin
+  // limpiarlo entre tests, dos tests que usan la misma combinacion de
+  // departamento/codigoPostal/rango se contaminarian entre si.
+  clearFechasDisponiblesCacheForTests();
+});
 
 const baseInput: CuposEngineInput = {
   productIds: ["10054511"],
@@ -308,5 +315,59 @@ describe("getFechasDisponibles", () => {
 
     const result = await getFechasDisponibles(baseFechasInput, client);
     expect(result).toContain("2026-08-03");
+  });
+
+  describe("cache en memoria por departamento/codigoPostal/rango de fechas", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function clientReturningCupo(): IC4CODataClient {
+      return clientFromRouter(async (path) => {
+        if (path.includes("BO_RegionRootCollection")) return [region];
+        if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+        if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+        if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
+          return [{ zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }];
+        }
+        return [];
+      });
+    }
+
+    it("no vuelve a llamar a C4C para la misma combinacion dentro de la ventana de 10 minutos", async () => {
+      const client = clientReturningCupo();
+
+      const first = await getFechasDisponibles(baseFechasInput, client);
+      const callsAfterFirst = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length;
+      const second = await getFechasDisponibles(baseFechasInput, client);
+
+      expect(second).toEqual(first);
+      expect((client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    it("vuelve a consultar C4C despues de que expira el TTL de 10 minutos", async () => {
+      const client = clientReturningCupo();
+
+      await getFechasDisponibles(baseFechasInput, client);
+      const callsAfterFirst = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length;
+      vi.advanceTimersByTime(10 * 60_000 + 1);
+      await getFechasDisponibles(baseFechasInput, client);
+
+      expect((client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    });
+
+    it("mantiene caches independientes para distinto departamento/codigoPostal/rango", async () => {
+      const client = clientReturningCupo();
+
+      await getFechasDisponibles(baseFechasInput, client);
+      const callsAfterFirst = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length;
+      await getFechasDisponibles({ ...baseFechasInput, regionCode: "99" }, client);
+
+      expect((client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    });
   });
 });

@@ -123,28 +123,60 @@ export interface PostalCodeMatch {
   codigoPostal: string;
 }
 
+export interface PostalCodeSearchResult {
+  resultados: PostalCodeMatch[];
+  /** true si la busqueda encontro mas de 20 coincidencias (se recortan a 20) - hay que seguir escribiendo para acotar. */
+  hayMasResultados: boolean;
+}
+
 /** Busca codigos postales (zonas de cobertura activas de SOLE) por nombre de distrito/zona, dentro de un departamento. */
-export async function searchPostalCodes(departamento: string, query: string): Promise<PostalCodeMatch[]> {
+export async function searchPostalCodes(departamento: string, query: string): Promise<PostalCodeSearchResult> {
   const params = new URLSearchParams({ departamento, q: query });
   const res = await fetch(`/api/codigos-postales?${params.toString()}`);
   const body = (await res.json().catch(() => undefined)) as
-    | { resultados?: PostalCodeMatch[]; error?: string }
+    | { resultados?: PostalCodeMatch[]; hayMasResultados?: boolean; error?: string }
     | undefined;
   if (!res.ok) {
     throw new ApiError(body?.error ?? "No pudimos buscar codigos postales. Intenta de nuevo.");
   }
-  return body?.resultados ?? [];
+  return { resultados: body?.resultados ?? [], hayMasResultados: body?.hayMasResultados ?? false };
 }
 
-/** true si el departamento tiene al menos una zona de cobertura de servicio activa. */
+/**
+ * true si el departamento tiene al menos una zona de cobertura de servicio
+ * activa. Lanza ApiError ante cualquier falla (red o respuesta no-ok) - a
+ * diferencia de una version anterior, NO se traga los errores como
+ * "false": un hipo transitorio (502, corte de red) no es lo mismo que una
+ * confirmacion real de "cero cobertura", y tratarlos igual bloqueaba la
+ * entrada de direccion por una falla pasajera. El caller decide como
+ * degradar (fail-open) ante el catch.
+ */
 export async function hasActiveCoverage(departamento: string): Promise<boolean> {
+  const params = new URLSearchParams({ departamento });
+  const res = await fetch(`/api/codigos-postales/cobertura?${params.toString()}`);
+  const body = (await res.json().catch(() => undefined)) as { tieneCobertura?: boolean; error?: string } | undefined;
+  if (!res.ok) {
+    throw new ApiError(body?.error ?? "No pudimos verificar la cobertura. Intenta de nuevo.");
+  }
+  return body?.tieneCobertura ?? false;
+}
+
+/**
+ * Valida un codigo postal autocompletado desde datos de un cliente existente
+ * (nunca paso por regionxdepartamento al momento de guardarse en C4C) contra
+ * el universo de zonas de cobertura activas. Falla ABIERTO (resuelve true)
+ * ante cualquier error de red o de servidor: un hipo transitorio nunca debe
+ * borrar un codigo postal real y valido de un cliente existente - solo una
+ * respuesta exitosa y explicita {valido:false} debe invalidarlo.
+ */
+export async function validatePostalCode(departamento: string, codigoPostal: string): Promise<boolean> {
   try {
-    const params = new URLSearchParams({ departamento });
-    const res = await fetch(`/api/codigos-postales/cobertura?${params.toString()}`);
-    if (!res.ok) return false;
-    const body = (await res.json().catch(() => undefined)) as { tieneCobertura?: boolean } | undefined;
-    return body?.tieneCobertura ?? false;
+    const params = new URLSearchParams({ departamento, codigoPostal });
+    const res = await fetch(`/api/codigos-postales/validar?${params.toString()}`);
+    if (!res.ok) return true;
+    const body = (await res.json().catch(() => undefined)) as { valido?: boolean } | undefined;
+    return body?.valido ?? true;
   } catch {
-    return false;
+    return true;
   }
 }

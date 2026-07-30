@@ -72,6 +72,9 @@ describe("runServiceRequestOrchestration", () => {
     // "Listo para planificar" (codigo 7) - confirmado via value-help de C4C
     // produccion, no el default "Abierto" (1) que aplica si no se envia.
     expect(ticketBody.ServiceRequestUserLifeCycleStatusCode).toBe("7");
+    // Name se envia explicitamente en hora local de Lima (UTC-5), formato
+    // "YYYY-MM-DDTHH:mm:ss" igual al default que usa C4C cuando no se envia.
+    expect(ticketBody.Name).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
     // Sin motor de cupos: estos campos no deben enviarse en absoluto.
     expect(ticketBody).not.toHaveProperty("zIDEmpresa_SDK");
     expect(ticketBody).not.toHaveProperty("Z_CabRegion_KUT");
@@ -86,6 +89,25 @@ describe("runServiceRequestOrchestration", () => {
     expect(noteCall[1].TypeCode).toBe("10004");
     expect(noteCall[1].Text).toContain("Medio de contacto preferido: WhatsApp");
     expect(noteCall[1].Text).toContain("Lugar de compra: SODIMAC PERU S.A.");
+  });
+
+  it("Name usa la hora local de Lima (UTC-5), no la hora del servidor", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-30T23:59:49.000Z"));
+    try {
+      const postEntity = vi.fn().mockResolvedValue({ ObjectID: "TICKETOBJ", ID: "138320" });
+      const client = clientFromRouter(happyPathRouter, postEntity);
+
+      await runServiceRequestOrchestration(submission, client);
+
+      const [, ticketBody] = postEntity.mock.calls.find(
+        ([path]) => (path as string).includes("ServiceRequestCollection") && !(path as string).includes("TextCollection"),
+      ) as [string, Record<string, unknown>];
+      // 23:59:49 UTC - 5h = 18:59:49 hora de Lima el mismo dia.
+      expect(ticketBody.Name).toBe("2026-07-30T18:59:49");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("combo multi-producto: crea un producto registrado y un ticket por cada item", async () => {

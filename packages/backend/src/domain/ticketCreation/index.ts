@@ -6,6 +6,20 @@ export * from "./types.js";
 
 const NS = "v1/c4codataapi";
 
+/** Lima (America/Lima) es UTC-5 todo el ano, sin horario de verano. */
+const LIMA_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+/**
+ * Timestamp local de Lima en el mismo formato que C4C usa por default para
+ * "Name" cuando el campo no se envia (ej. "2026-07-06T23:27:31") - pero ese
+ * default de C4C usa la hora del servidor (UTC), no la hora de Lima. Se
+ * calcula restando el offset y formateando como si fuera UTC, para producir
+ * el mismo patron de string pero con la hora local correcta.
+ */
+function limaTimestampName(): string {
+  return new Date(Date.now() - LIMA_OFFSET_MS).toISOString().slice(0, 19);
+}
+
 /** TypeCode de ServiceRequestTextCollection para el comentario del cliente
  * ("Descripcion" en Fiori, distinto de "Descripcion del trabajo"=10071) -
  * confirmado en vivo contra QA (ticket 138374). */
@@ -42,10 +56,12 @@ export async function createTicket(
   client: IC4CODataClient,
 ): Promise<TicketCreationResult> {
   const created = await client.postEntity<ServiceRequestRecord>(`${NS}/ServiceRequestCollection`, {
-    // No se envia "Name": los tickets organicos reales en C4C (creados por
-    // el proceso actual, ej. IDs 138388-138392) siempre tienen Name como
-    // timestamp ("2026-07-06T23:27:31") - eso es el default de C4C cuando
-    // el campo no se envia, no un valor puesto por el creador del ticket.
+    // Se envia "Name" explicitamente en hora local de Lima: el default de
+    // C4C cuando el campo no se envia es tambien un timestamp (ver tickets
+    // organicos, ej. IDs 138388-138392), pero calculado en la zona horaria
+    // del servidor, no en UTC-5 - lo cual mostraba una hora incorrecta al
+    // negocio (confirmado en el ticket real 1399562, 2026-07-30).
+    Name: limaTimestampName(),
     ProcessingTypeCode: "SRRQ",
     ServicePriorityCode: "3",
     DataOriginTypeCode: "1",

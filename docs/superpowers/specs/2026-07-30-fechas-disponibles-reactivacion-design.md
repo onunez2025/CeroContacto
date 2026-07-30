@@ -101,6 +101,13 @@ esa funcion si necesita.
    usa para nada en esta iteracion. Si `cust_producto` se despliega mas
    adelante, se puede reintroducir ese filtro como un cambio incremental
    separado.
+5. **Rate limiter en `/api/fechas-disponibles`**: correccion sobre una
+   suposicion incorrecta de este documento - la ruta HOY NO TIENE rate
+   limiter (a diferencia de `/api/codigos-postales`, que si tiene uno de
+   60/min). Como hasta ahora el motor de cupos estaba deshabilitado, la
+   ruta nunca se ejecutaba de verdad y el problema no era visible. Al
+   reactivarla se le agrega el mismo patron ya establecido:
+   `createRateLimiter({ windowMs: 60_000, max: 60 })`.
 
 ## Arquitectura
 
@@ -149,8 +156,10 @@ esa funcion si necesita.
 - `packages/backend/src/app.ts`, `/api/fechas-disponibles`: se elimina la
   lectura y validacion de `req.query.productos`. La ruta ya no devuelve
   `{ fechas: [] }` tempranamente por falta de productos - solo por falta
-  de `departamento` o `codigoPostal`. El resto (rate limiter 60/min,
-  ventana de fechas manana..+41 dias, manejo de error 502) no cambia.
+  de `departamento` o `codigoPostal`. Se le agrega un rate limiter nuevo
+  (`createRateLimiter({ windowMs: 60_000, max: 60 })`, mismo patron que
+  `/api/codigos-postales`) que hoy no tiene. El resto (ventana de fechas
+  manana..+41 dias, manejo de error 502) no cambia.
 
 ### Frontend
 

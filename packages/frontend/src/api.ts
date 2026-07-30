@@ -117,3 +117,30 @@ export async function lookupCustomer(
   const body = (await res.json().catch(() => undefined)) as CustomerLookupResult | undefined;
   return body ?? { found: false };
 }
+
+export interface PostalCodeMatch {
+  distrito: string;
+  codigoPostal: string;
+}
+
+/** Busca codigos postales (zonas de cobertura activas de SOLE) por nombre de distrito/zona, dentro de un departamento. */
+export async function searchPostalCodes(departamento: string, query: string): Promise<PostalCodeMatch[]> {
+  const params = new URLSearchParams({ departamento, q: query });
+  const res = await fetch(`/api/codigos-postales?${params.toString()}`);
+  const body = (await res.json().catch(() => undefined)) as
+    | { resultados?: PostalCodeMatch[]; error?: string }
+    | undefined;
+  if (!res.ok) {
+    throw new ApiError(body?.error ?? "No pudimos buscar codigos postales. Intenta de nuevo.");
+  }
+  return body?.resultados ?? [];
+}
+
+/** true si el departamento tiene al menos una zona de cobertura de servicio activa. */
+export async function hasActiveCoverage(departamento: string): Promise<boolean> {
+  const params = new URLSearchParams({ departamento });
+  const res = await fetch(`/api/codigos-postales/cobertura?${params.toString()}`);
+  if (!res.ok) return false;
+  const body = (await res.json().catch(() => undefined)) as { tieneCobertura?: boolean } | undefined;
+  return body?.tieneCobertura ?? false;
+}

@@ -261,8 +261,8 @@ export default function App() {
       // al momento de guardarse) - revalidarlo en segundo plano, sin
       // bloquear el resto de este flujo, y limpiarlo si ya no es valido para
       // forzar que el cliente elija uno real de la lista.
-      if (d.direccion.codigoPostal) {
-        const departamentoAutofill = d.direccion.departamento ?? "";
+      if (d.direccion.codigoPostal && d.direccion.departamento) {
+        const departamentoAutofill = d.direccion.departamento;
         const codigoPostalAutofill = d.direccion.codigoPostal;
         validatePostalCode(departamentoAutofill, codigoPostalAutofill).then((valido) => {
           if (valido) return;

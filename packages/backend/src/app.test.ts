@@ -204,11 +204,11 @@ describe("createApp", () => {
     expect(res.status).toBe(502);
   });
 
-  it("las rutas /api/codigos-postales* comparten un limite de 30 solicitudes por minuto por IP", async () => {
+  it("las rutas /api/codigos-postales* comparten un limite de 60 solicitudes por minuto por IP", async () => {
     mockHasActiveCoverage.mockResolvedValue(true);
     const app = createApp();
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       const res = await request(app).get("/api/codigos-postales/cobertura?departamento=15");
       expect(res.status).toBe(200);
     }
@@ -222,13 +222,13 @@ describe("createApp", () => {
     mockIsValidPostalCode.mockResolvedValue(true);
     const app = createApp();
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       expect((await request(app).get("/api/codigos-postales/cobertura?departamento=15")).status).toBe(200);
     }
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       expect((await request(app).get("/api/codigos-postales?departamento=15&q=san+borja")).status).toBe(200);
     }
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       expect(
         (await request(app).get("/api/codigos-postales/validar?departamento=15&codigoPostal=15130")).status,
       ).toBe(200);

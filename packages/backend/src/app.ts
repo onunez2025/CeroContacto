@@ -89,10 +89,12 @@ export function createApp(): Express {
     }
   });
 
-  // 30/min: mas generoso que el limite de /api/clientes/lookup (10/min) porque
-  // esta data no es PII, pero sigue siendo un endpoint publico que puede
-  // disparar consultas reales contra C4C produccion en cada keystroke.
-  const postalCodesRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
+  // 60/min: mas generoso que el limite de /api/clientes/lookup (10/min) porque
+  // esta data no es PII, y estas rutas comparten un cache en memoria de 10
+  // minutos por departamento, por lo que casi nunca disparan una consulta
+  // real contra C4C produccion mas alla del primer request por departamento
+  // en esa ventana.
+  const postalCodesRateLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 
   app.get("/api/codigos-postales", postalCodesRateLimiter, async (req, res) => {
     const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";

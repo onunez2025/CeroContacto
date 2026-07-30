@@ -54,13 +54,17 @@ export function createApp(): Express {
     }
   });
 
-  app.get("/api/fechas-disponibles", async (req, res) => {
+  // 60/min: mismo patron que /api/codigos-postales* - esta ruta nunca tuvo
+  // rate limiter porque el motor de cupos estaba deshabilitado y nunca se
+  // ejecutaba de verdad (confirmado 2026-07-30, ver docs/superpowers/specs/
+  // 2026-07-30-fechas-disponibles-reactivacion-design.md).
+  const fechasDisponiblesRateLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
+
+  app.get("/api/fechas-disponibles", fechasDisponiblesRateLimiter, async (req, res) => {
     const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
     const codigoPostal = typeof req.query.codigoPostal === "string" ? req.query.codigoPostal : "";
-    const productos =
-      typeof req.query.productos === "string" ? req.query.productos.split(",").filter(Boolean) : [];
 
-    if (!departamento || !codigoPostal || productos.length === 0) {
+    if (!departamento || !codigoPostal) {
       res.status(200).json({ fechas: [] });
       return;
     }

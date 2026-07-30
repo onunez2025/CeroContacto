@@ -114,7 +114,7 @@ describe("createApp", () => {
     mockGetFechasDisponibles.mockResolvedValue(["2026-08-03", "2026-08-05"]);
 
     const res = await request(createApp()).get(
-      "/api/fechas-disponibles?departamento=15&codigoPostal=07021&productos=10054511",
+      "/api/fechas-disponibles?departamento=15&codigoPostal=07021",
     );
 
     expect(res.status).toBe(200);
@@ -127,6 +127,18 @@ describe("createApp", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ fechas: [] });
     expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
+  });
+
+  it("las rutas /api/fechas-disponibles comparten un limite de 60 solicitudes por minuto por IP", async () => {
+    mockGetFechasDisponibles.mockResolvedValue([]);
+    const app = createApp();
+
+    for (let i = 0; i < 60; i++) {
+      const res = await request(app).get("/api/fechas-disponibles?departamento=15&codigoPostal=07021");
+      expect(res.status).toBe(200);
+    }
+    const res = await request(app).get("/api/fechas-disponibles?departamento=15&codigoPostal=07021");
+    expect(res.status).toBe(429);
   });
 
   it("GET /api/codigos-postales devuelve los resultados de la busqueda y hayMasResultados", async () => {

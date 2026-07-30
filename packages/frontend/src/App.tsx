@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema, isValidCe, isValidDni, isValidRuc } from "@cerocontacto/shared";
 import { PERU_DISTRITOS } from "@cerocontacto/shared";
-import { ApiError, lookupCustomer, submitServiceRequest, type SubmitResult } from "./api.js";
+import {
+  ApiError,
+  hasActiveCoverage,
+  lookupCustomer,
+  searchPostalCodes,
+  submitServiceRequest,
+  type PostalCodeMatch,
+  type SubmitResult,
+} from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
 import { PERU_PROVINCIAS } from "./peruProvincias.js";
@@ -266,6 +274,79 @@ export default function App() {
     update("numeroDocumento", value);
   }
 
+  const [coverageStatus, setCoverageStatus] = useState<"idle" | "checking" | "covered" | "not-covered">("idle");
+  const [postalQuery, setPostalQuery] = useState("");
+  const [postalResults, setPostalResults] = useState<PostalCodeMatch[]>([]);
+  const [postalOpen, setPostalOpen] = useState(false);
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [postalSearchError, setPostalSearchError] = useState<string | null>(null);
+  const postalDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (form.codigoPostal && !postalQuery) {
+      setPostalQuery(form.codigoPostal);
+    }
+  }, [form.codigoPostal]);
+
+  useEffect(() => {
+    if (!form.departamento) {
+      setCoverageStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setCoverageStatus("checking");
+    hasActiveCoverage(form.departamento).then((covered) => {
+      if (!cancelled) setCoverageStatus(covered ? "covered" : "not-covered");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.departamento]);
+
+  function handleDepartamentoChange(value: string) {
+    setForm((prev) => ({ ...prev, departamento: value, provincia: "", distrito: "", codigoPostal: "" }));
+    setPostalQuery("");
+    setPostalResults([]);
+    setPostalOpen(false);
+  }
+
+  function handlePostalQueryChange(value: string) {
+    setPostalQuery(value);
+    if (form.codigoPostal) update("codigoPostal", "");
+    if (postalDebounceRef.current) clearTimeout(postalDebounceRef.current);
+
+    if (value.trim().length < 2) {
+      setPostalResults([]);
+      setPostalSearchError(null);
+      setPostalOpen(false);
+      return;
+    }
+
+    postalDebounceRef.current = setTimeout(() => {
+      setPostalLoading(true);
+      setPostalSearchError(null);
+      setPostalOpen(true);
+      searchPostalCodes(form.departamento, value)
+        .then((items) => {
+          setPostalResults(items);
+        })
+        .catch((err: unknown) => {
+          setPostalSearchError(
+            err instanceof ApiError ? err.message : "No pudimos buscar codigos postales. Intenta de nuevo.",
+          );
+          setPostalResults([]);
+        })
+        .finally(() => setPostalLoading(false));
+    }, 300);
+  }
+
+  function selectPostalMatch(item: PostalCodeMatch) {
+    update("codigoPostal", item.codigoPostal);
+    setPostalQuery(`${item.distrito} — ${item.codigoPostal}`);
+    setPostalResults([]);
+    setPostalOpen(false);
+  }
+
   function goToStep(next: number) {
     setStep(next);
     document.querySelector(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -505,13 +586,7 @@ export default function App() {
 
             <div className="field">
               <label htmlFor="departamento">Departamento</label>
-              <select
-                id="departamento"
-                value={form.departamento}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, departamento: e.target.value, provincia: "", distrito: "" }))
-                }
-              >
+              <select id="departamento" value={form.departamento} onChange={(e) => handleDepartamentoChange(e.target.value)}>
                 <option value="">Selecciona un departamento</option>
                 {PERU_DEPARTAMENTOS.map((d) => (
                   <option key={d.code} value={d.code}>
@@ -585,12 +660,57 @@ export default function App() {
               </div>
               <div className="field">
                 <label htmlFor="codigoPostal">Código postal</label>
-                <input
-                  id="codigoPostal"
-                  type="text"
-                  value={form.codigoPostal}
-                  onChange={(e) => update("codigoPostal", e.target.value)}
-                />
+                {coverageStatus === "not-covered" ? (
+                  <p className="hint">
+                    No tenemos cobertura en tu zona todavía.{" "}
+                    <a href={WHATSAPP_URL} target="_blank" rel="noreferrer">
+                      Escríbenos por WhatsApp
+                    </a>{" "}
+                    para coordinar manualmente.
+                  </p>
+                ) : (
+                  <div className="autocomplete">
+                    <input
+                      id="codigoPostal"
+                      type="text"
+                      autoComplete="off"
+                      placeholder={form.departamento ? "Escribe tu distrito o zona..." : "Primero elige un departamento"}
+                      disabled={!form.departamento || coverageStatus !== "covered"}
+                      value={postalQuery}
+                      onChange={(e) => handlePostalQueryChange(e.target.value)}
+                      onFocus={() => postalResults.length > 0 && setPostalOpen(true)}
+                      onBlur={() => setTimeout(() => setPostalOpen(false), 150)}
+                    />
+                    {form.codigoPostal ? (
+                      <span className="autocomplete-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    ) : null}
+                    {postalOpen ? (
+                      <ul className="autocomplete-list">
+                        {postalLoading ? (
+                          <li className="autocomplete-loading">Buscando...</li>
+                        ) : postalSearchError ? (
+                          <li className="autocomplete-loading autocomplete-error">{postalSearchError}</li>
+                        ) : postalResults.length === 0 ? (
+                          <li className="autocomplete-loading">Sin resultados para "{postalQuery}", intenta con otro nombre</li>
+                        ) : (
+                          postalResults.map((item) => (
+                            <li key={`${item.distrito}-${item.codigoPostal}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => selectPostalMatch(item)}
+                              >
+                                {item.distrito} — {item.codigoPostal}
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    ) : null}
+                  </div>
+                )}
                 <FieldError message={fieldErrors["direccion.codigoPostal"]} />
               </div>
             </div>

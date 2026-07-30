@@ -66,6 +66,7 @@ export function ProductoPicker({
     debounceRef.current = setTimeout(() => {
       setLoading(true);
       setSearchError(null);
+      setOpen(true);
       searchProducts(categoria, value)
         .then((items) => {
           setResults(items);

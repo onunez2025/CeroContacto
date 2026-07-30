@@ -25,22 +25,33 @@ describe("searchPostalCodes", () => {
     expect(client.getCollection).not.toHaveBeenCalled();
   });
 
-  it("mapea zIDDistrito/zPostalCodigo a distrito/codigoPostal y filtra por departamento + activo + nombre", async () => {
+  it("filtra por departamento + activo en el $filter de OData (sin substringof)", async () => {
+    const client = clientReturning([{ zIDDistrito: "San Juan de Lurigancho", zPostalCodigo: "15453" }]);
+
+    await searchPostalCodes("15", "lurigancho", client);
+
+    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(path).toContain("zRegDepart%20eq%20'15'");
+    expect(path).toContain("zRegactivo%20eq%20true");
+    // zIDDistrito viene en mayusculas/minusculas mixtas en C4C y `substringof`
+    // es sensible a mayusculas (tolower() tampoco esta soportado por este
+    // servicio) - el filtro de nombre se hace en memoria, no en el $filter.
+    expect(path).not.toContain("substringof");
+  });
+
+  it("mapea zIDDistrito/zPostalCodigo a distrito/codigoPostal, filtrando por nombre sin distinguir mayusculas/minusculas", async () => {
     const client = clientReturning([
       { zIDDistrito: "San Juan de Lurigancho", zPostalCodigo: "15453" },
       { zIDDistrito: "Lurigancho, San Juan de Lurigancho", zPostalCodigo: "15457" },
+      { zIDDistrito: "Miraflores", zPostalCodigo: "15074" },
     ]);
 
-    const result = await searchPostalCodes("15", "lurigancho", client);
+    const result = await searchPostalCodes("15", "LURIGANCHO", client);
 
     expect(result).toEqual([
       { distrito: "San Juan de Lurigancho", codigoPostal: "15453" },
       { distrito: "Lurigancho, San Juan de Lurigancho", codigoPostal: "15457" },
     ]);
-    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
-    expect(path).toContain("zRegDepart%20eq%20'15'");
-    expect(path).toContain("zRegactivo%20eq%20true");
-    expect(path).toContain("substringof('LURIGANCHO',zIDDistrito)".replace(/[()',]/g, (c) => encodeURIComponent(c)));
   });
 });
 

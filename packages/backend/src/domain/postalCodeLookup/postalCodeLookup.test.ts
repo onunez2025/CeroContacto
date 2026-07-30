@@ -56,11 +56,17 @@ describe("hasActiveCoverage", () => {
     const client = clientReturning([{ zIDDistrito: "SAN BORJA", zPostalCodigo: "15130" }]);
     const result = await hasActiveCoverage("15", client);
     expect(result).toBe(true);
+    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(path).toContain("zRegDepart%20eq%20'15'");
+    expect(path).toContain("zRegactivo%20eq%20true");
   });
 
   it("devuelve false si no hay ningun registro activo en el departamento", async () => {
     const client = clientReturning([]);
     const result = await hasActiveCoverage("99", client);
     expect(result).toBe(false);
+    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(path).toContain("zRegDepart%20eq%20'99'");
+    expect(path).toContain("zRegactivo%20eq%20true");
   });
 });

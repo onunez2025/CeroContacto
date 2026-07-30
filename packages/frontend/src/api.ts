@@ -70,13 +70,8 @@ export async function searchProducts(categoriaId: string, query: string): Promis
   return body?.productos ?? [];
 }
 
-/** Fechas (ISO) con cupos reales disponibles, para restringir el calendario del paso 4. */
-export async function getFechasDisponibles(
-  departamento: string,
-  codigoPostal: string,
-  productIds: string[],
-): Promise<string[]> {
-  const params = new URLSearchParams({ departamento, codigoPostal, productos: productIds.join(",") });
+export async function getFechasDisponibles(departamento: string, codigoPostal: string): Promise<string[]> {
+  const params = new URLSearchParams({ departamento, codigoPostal });
   const res = await fetch(`/api/fechas-disponibles?${params.toString()}`);
   const body = (await res.json().catch(() => undefined)) as { fechas?: string[]; error?: string } | undefined;
   if (!res.ok) {

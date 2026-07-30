@@ -50,7 +50,6 @@ interface MesVisible {
 interface FechaDisponibleCalendarProps {
   departamento: string;
   codigoPostal: string;
-  productIds: string[];
   value: string;
   onChange: (fecha: string) => void;
   whatsappUrl: string;
@@ -62,7 +61,6 @@ type Estado = "cargando" | "error" | "vacio" | "listo";
 export function FechaDisponibleCalendar({
   departamento,
   codigoPostal,
-  productIds,
   value,
   onChange,
   whatsappUrl,
@@ -72,13 +70,12 @@ export function FechaDisponibleCalendar({
   const [estado, setEstado] = useState<Estado>("cargando");
   const [visibleMonth, setVisibleMonth] = useState<MesVisible | null>(null);
   const [retryToken, setRetryToken] = useState(0);
-  const productIdsKey = productIds.join(",");
 
   useEffect(() => {
     let cancelado = false;
     setEstado("cargando");
 
-    getFechasDisponibles(departamento, codigoPostal, productIds)
+    getFechasDisponibles(departamento, codigoPostal)
       .then((lista) => {
         if (cancelado) return;
         setFechas(new Set(lista));
@@ -98,7 +95,7 @@ export function FechaDisponibleCalendar({
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [departamento, codigoPostal, productIdsKey, retryToken]);
+  }, [departamento, codigoPostal, retryToken]);
 
   if (estado === "cargando") {
     return <p className="hint">Buscando fechas disponibles...</p>;

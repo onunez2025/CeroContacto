@@ -138,9 +138,13 @@ export async function searchPostalCodes(departamento: string, query: string): Pr
 
 /** true si el departamento tiene al menos una zona de cobertura de servicio activa. */
 export async function hasActiveCoverage(departamento: string): Promise<boolean> {
-  const params = new URLSearchParams({ departamento });
-  const res = await fetch(`/api/codigos-postales/cobertura?${params.toString()}`);
-  if (!res.ok) return false;
-  const body = (await res.json().catch(() => undefined)) as { tieneCobertura?: boolean } | undefined;
-  return body?.tieneCobertura ?? false;
+  try {
+    const params = new URLSearchParams({ departamento });
+    const res = await fetch(`/api/codigos-postales/cobertura?${params.toString()}`);
+    if (!res.ok) return false;
+    const body = (await res.json().catch(() => undefined)) as { tieneCobertura?: boolean } | undefined;
+    return body?.tieneCobertura ?? false;
+  } catch {
+    return false;
+  }
 }

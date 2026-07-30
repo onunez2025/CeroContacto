@@ -90,21 +90,15 @@ export async function assignCupo(input: CuposEngineInput, client: IC4CODataClien
 
 /**
  * Calcula que fechas del rango [input.desde, input.hasta] tienen mas de
- * 10 cupos disponibles para alguna empresa candidata elegible (mismos
- * chequeos de habilitacion que assignCupo, pero de solo lectura - no
- * reserva nada). Se usa para restringir el calendario del formulario;
- * `assignCupo` sigue siendo la unica fuente de verdad al enviar la
- * solicitud real.
+ * 10 cupos reales disponibles para alguna empresa candidata del
+ * departamento (activa y con el dia de semana habilitado). No filtra por
+ * grupo de material/tipo de servicio: los servicios de C4C que harian
+ * falta para eso (cust_producto, chequeo de tipo de servicio) no existen
+ * en produccion todavia (confirmado en vivo, 2026-07-30) - ver
+ * assignCupo, que si los necesita y por eso sigue deshabilitado. Se usa
+ * para restringir el calendario del formulario; no reserva nada.
  */
 export async function getFechasDisponibles(input: FechasDisponiblesInput, client: IC4CODataClient): Promise<string[]> {
-  const productGroups = new Set<string>();
-  for (const productId of input.productIds) {
-    const group = await getProductGroup(productId, client);
-    if (!group) return [];
-    productGroups.add(group);
-  }
-  const distinctGroups = [...productGroups];
-
   const region = await getRegionMeta(input.postalCode, client);
   if (!region?.zRegRegin) return [];
   const cabRegion = region.zRegRegin;
@@ -114,16 +108,9 @@ export async function getFechasDisponibles(input: FechasDisponiblesInput, client
 
   const elegibles: { zCupIdEmpresa: string; dias: Awaited<ReturnType<typeof getDiasHabilitados>> }[] = [];
   for (const candidate of candidates) {
-    const [tipoServicioOk, grupoMaterialChecks] = await Promise.all([
-      isTipoServicioHabilitado(candidate.ObjectID, client),
-      Promise.all(distinctGroups.map((group) => isGrupoMaterialHabilitado(candidate.ObjectID, group, client))),
-    ]);
-    if (!tipoServicioOk || !grupoMaterialChecks.every(Boolean)) continue;
-
     const dias = await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client);
     elegibles.push({ zCupIdEmpresa: candidate.zCupIdEmpresa, dias });
   }
-  if (elegibles.length === 0) return [];
 
   const cupos = await checkCapacidadRango(
     input.regionCode,

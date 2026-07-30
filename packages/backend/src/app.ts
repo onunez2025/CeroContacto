@@ -74,7 +74,6 @@ export function createApp(): Express {
       const client = buildC4CClientFromEnv();
       const fechas = await getFechasDisponibles(
         {
-          productIds: productos,
           postalCode: codigoPostal,
           regionCode: departamento,
           desde: desde.toISOString().slice(0, 10),

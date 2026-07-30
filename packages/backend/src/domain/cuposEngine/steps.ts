@@ -157,10 +157,18 @@ export async function checkCapacidad(
 
 /**
  * Version en rango de checkCapacidad: en vez de una fecha y una empresa,
- * trae en UNA sola consulta todos los registros de capacidad de varias
- * empresas candidatas para un rango de fechas, ya filtrados por
- * "mas de 10 cupos disponibles". Se usa para calcular que fechas mostrar
- * habilitadas en el calendario, sin consultar C4C dia por dia.
+ * trae en UNA sola consulta todos los registros de capacidad REAL (ya
+ * descontando reservas) de varias empresas candidatas para un rango de
+ * fechas, ya filtrados por "mas de 10 cupos disponibles". Se usa para
+ * calcular que fechas mostrar habilitadas en el calendario, sin consultar
+ * C4C dia por dia.
+ *
+ * Usa el servicio "cupos_x_empresa_x_fecha" (BO_CuposPorEmpresaPorFechaRoot),
+ * confirmado en vivo contra produccion (2026-07-30) - NO "cupoporarea", que
+ * nunca existio como servicio OData ("No implementation for service"). Este
+ * servicio no tiene campo de "area" (a diferencia de "plantilla_cuposarea",
+ * que si lo tiene pero no desglosa por departamento) - la capacidad real se
+ * filtra solo por departamento + empresa + fecha + activo.
  */
 export async function checkCapacidadRango(
   regionCode: string,
@@ -172,22 +180,20 @@ export async function checkCapacidadRango(
   if (companyIds.length === 0) return [];
 
   // C4C rechaza este $filter si se agrega tambien "zFecha le ..." (confirmado
-  // en vivo contra QA: "Error in filter System Query, Operation failed::
-  // Expression can not converted into ABAP select options" - un rango de dos
-  // lados sobre zFecha combinado con otros campos no se puede convertir a
-  // select-options en este servicio OData). Un solo lado (ge) combinado con
-  // el resto de campos si funciona, asi que el limite superior se filtra
+  // en vivo contra produccion, 2026-07-30, mismo error que en el servicio
+  // anterior: "Error in filter System Query, Operation failed:: Expression
+  // can not converted into ABAP select options"). Un solo lado (ge) combinado
+  // con el resto de campos si funciona, asi que el limite superior se filtra
   // aca en vez de en el $filter.
   const filter = and(
-    eq("zIdArea", SERVICE_AREA_ID),
     eq("zDepartamento", regionCode),
     eqBool("zActivo", true),
-    cmpRaw("zCantidadDisponible", "gt", "10"),
+    cmpRaw("zCantidadReal", "gt", "10"),
     or(...companyIds.map((id) => eq("zIdEmpresa", id))),
     cmpRaw("zFecha", "ge", `datetime'${desde}T00:00:00'`),
   );
   const results = await client.getCollection<CupoPorAreaConFecha>(
-    `${CUST_NS}/cupoporarea/BO_CupoPorAreaRootCollection?$filter=${encodeURIComponent(filter)}&$select=zCantidadDisponible,zIdEmpresa,zFecha`,
+    `${CUST_NS}/cupos_x_empresa_x_fecha/BO_CuposPorEmpresaPorFechaRootCollection?$filter=${encodeURIComponent(filter)}&$select=zCantidadReal,zIdEmpresa,zFecha`,
   );
   return results
     .map((r) => ({ ...r, zFecha: parseODataJsonDate(r.zFecha) }))

@@ -8,7 +8,7 @@
  * customizing objects.
  */
 
-/** Area de servicio "Instalacion" (confirmado en datos reales de cupoporarea). */
+/** Area de servicio "GENERAL" (confirmado en el ticket real 1394128 de C4C produccion, 2026-07-30). */
 export const SERVICE_AREA_ID = "4";
 
 /** Tipo de servicio "Instalacion". Fijo hasta que Mantenimiento entre en alcance (pregunta G1). */
@@ -103,14 +103,13 @@ export interface CupoPorAreaRoot {
 }
 
 export interface CupoPorAreaConFecha {
-  zCantidadDisponible: number;
+  zCantidadReal: number;
   zIdEmpresa: string;
   /** Formato "YYYY-MM-DDT00:00:00" tal como lo devuelve C4C (OData v2 datetime sin offset). */
   zFecha: string;
 }
 
 export interface FechasDisponiblesInput {
-  productIds: string[];
   postalCode: string;
   regionCode: string;
   /** ISO date (YYYY-MM-DD), inclusive. */

@@ -191,31 +191,20 @@ describe("assignCupo", () => {
 
 describe("getFechasDisponibles", () => {
   const baseFechasInput: FechasDisponiblesInput = {
-    productIds: ["10054511"],
     postalCode: "07021",
     regionCode: "15",
     desde: "2026-08-03", // lunes
     hasta: "2026-08-09", // domingo siguiente
   };
 
-  it("devuelve [] si no se resuelve el grupo de material", async () => {
-    const client = routedClient({ MaterialSalesProcessInformationCollection: [] });
-    const result = await getFechasDisponibles(baseFechasInput, client);
-    expect(result).toEqual([]);
-  });
-
   it("devuelve [] si no hay region activa", async () => {
-    const client = routedClient({
-      MaterialSalesProcessInformationCollection: [{ ProductGroup2: "M74" }],
-      BO_RegionRootCollection: [],
-    });
+    const client = routedClient({ BO_RegionRootCollection: [] });
     const result = await getFechasDisponibles(baseFechasInput, client);
     expect(result).toEqual([]);
   });
 
   it("devuelve [] si no hay empresas candidatas", async () => {
     const client = routedClient({
-      MaterialSalesProcessInformationCollection: [{ ProductGroup2: "M74" }],
       BO_RegionRootCollection: [region],
       BO_CuposEmpresaRootCollection: [],
     });
@@ -223,32 +212,17 @@ describe("getFechasDisponibles", () => {
     expect(result).toEqual([]);
   });
 
-  it("devuelve [] si ninguna candidata pasa tipo de servicio o grupo de material", async () => {
-    const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
-      if (path.includes("BO_RegionRootCollection")) return [region];
-      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposTipoServicio")) return [];
-      return [];
-    });
-    const result = await getFechasDisponibles(baseFechasInput, client);
-    expect(result).toEqual([]);
-  });
-
   it("devuelve solo las fechas con cupo y dia de semana habilitado para alguna candidata elegible", async () => {
     const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       // Candidata trabaja lunes y miercoles, no martes.
       if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true, zCupFechMircoles: true }];
-      if (path.includes("BO_CupoPorAreaRootCollection")) {
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadDisponible: 15 }, // lunes, con cupo
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-04T00:00:00", zCantidadDisponible: 20 }, // martes, con cupo pero no trabaja
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-05T00:00:00", zCantidadDisponible: 12 }, // miercoles, con cupo
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }, // lunes, con cupo
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-04T00:00:00", zCantidadReal: 20 }, // martes, con cupo pero no trabaja
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-05T00:00:00", zCantidadReal: 12 }, // miercoles, con cupo
         ];
       }
       return [];
@@ -259,22 +233,16 @@ describe("getFechasDisponibles", () => {
   });
 
   it("interpreta correctamente zFecha en formato JSON verbose de OData v2 (/Date(ms)/)", async () => {
-    // Confirmado en vivo contra C4C QA real: el JSON que devuelve C4C serializa
-    // zFecha como "/Date(<ms-epoch>)/", no como texto ISO. Este test fija ese
-    // formato real para que un futuro cambio no reintroduzca el bug donde
-    // ninguna fecha real hacia match (solo se detecto una vez que C4C QA tuvo
-    // datos de cupos futuros reales para probar).
+    // Confirmado en vivo contra C4C produccion: el JSON que devuelve C4C serializa
+    // zFecha como "/Date(<ms-epoch>)/", no como texto ISO.
     const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
-      if (path.includes("BO_CupoPorAreaRootCollection")) {
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
           // 2026-08-03T00:00:00Z en formato "/Date(ms-epoch)/" (lunes, con cupo).
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "/Date(1785715200000)/", zCantidadDisponible: 15 },
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "/Date(1785715200000)/", zCantidadReal: 15 },
         ];
       }
       return [];
@@ -284,16 +252,13 @@ describe("getFechasDisponibles", () => {
     expect(result).toEqual(["2026-08-03"]);
   });
 
-  it("la consulta de capacidad filtra explicitamente por mas de 10 cupos disponibles", async () => {
+  it("la consulta de capacidad filtra explicitamente por mas de 10 cupos reales disponibles", async () => {
     let capturedPath = "";
     const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
-      if (path.includes("BO_CupoPorAreaRootCollection")) {
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         capturedPath = path;
         return [];
       }
@@ -301,63 +266,47 @@ describe("getFechasDisponibles", () => {
     });
 
     await getFechasDisponibles(baseFechasInput, client);
-    expect(capturedPath).toContain(encodeURIComponent("zCantidadDisponible gt 10"));
+    expect(capturedPath).toContain(encodeURIComponent("zCantidadReal gt 10"));
   });
 
   it("filtra el limite superior de fechas client-side (sin incluir 'zFecha le' en el $filter)", async () => {
     let capturedPath = "";
     const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true, zCupFechMircoles: true }];
-      if (path.includes("BO_CupoPorAreaRootCollection")) {
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         capturedPath = path;
-        // Retorna una fecha valida dentro del rango Y una fuera (pasada en la consulta pero rechazada por C4C)
         return [
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-05T00:00:00", zCantidadDisponible: 15 }, // miercoles dentro del rango
-          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-10T00:00:00", zCantidadDisponible: 20 }, // domingo fuera del rango (> hasta)
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-05T00:00:00", zCantidadReal: 15 }, // miercoles dentro del rango
+          { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-10T00:00:00", zCantidadReal: 20 }, // domingo fuera del rango (> hasta)
         ];
       }
       return [];
     });
 
     const result = await getFechasDisponibles(baseFechasInput, client);
-    // Verifica que la fecha fuera del rango NO aparezca (filtrada client-side)
     expect(result).not.toContain("2026-08-10");
-    // Verifica que la fecha dentro del rango SI aparezca
     expect(result).toContain("2026-08-05");
-    // Verifica que el $filter NO contiene la clausula "zFecha le" (que causaria fallo en C4C)
     const decodedPath = decodeURIComponent(capturedPath);
     expect(decodedPath).not.toContain("zFecha le");
   });
 
   it("usa semantica OR entre empresas elegibles (basta que una tenga cupo para incluir la fecha)", async () => {
     const client = clientFromRouter(async (path) => {
-      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA, candidateB];
-      // Candidata A pasa todos los chequeos de habilitacion
-      if (path.includes("OBJ-A") && path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("OBJ-A") && path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
-      // Candidata B tambien pasa todos los chequeos
-      if (path.includes("OBJ-B") && path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
-      if (path.includes("OBJ-B") && path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
-      // Capacidad: A no tiene registros para la fecha (no hay capacity), B si tiene
-      if (path.includes("BO_CupoPorAreaRootCollection")) {
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
-          { zIdEmpresa: candidateB.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadDisponible: 15 }, // lunes de B
+          { zIdEmpresa: candidateB.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }, // lunes de B
         ];
       }
       return [];
     });
 
     const result = await getFechasDisponibles(baseFechasInput, client);
-    // Verifica que el lunes (fecha de B) aparezca, aunque A no tenga cupo
     expect(result).toContain("2026-08-03");
   });
 });

@@ -69,6 +69,9 @@ describe("runServiceRequestOrchestration", () => {
     expect(ticketBody.InstallationPointID).toBe("420434");
     expect(ticketBody.zTicketIDProvinciacontent_SDK).toBe("128");
     expect(ticketBody.zTicketIDDistritocontent_SDK).toBe("1254");
+    // "Listo para planificar" (codigo 7) - confirmado via value-help de C4C
+    // produccion, no el default "Abierto" (1) que aplica si no se envia.
+    expect(ticketBody.ServiceRequestUserLifeCycleStatusCode).toBe("7");
     // Sin motor de cupos: estos campos no deben enviarse en absoluto.
     expect(ticketBody).not.toHaveProperty("zIDEmpresa_SDK");
     expect(ticketBody).not.toHaveProperty("Z_CabRegion_KUT");

@@ -49,6 +49,12 @@ export async function createTicket(
     ProcessingTypeCode: "SRRQ",
     ServicePriorityCode: "3",
     DataOriginTypeCode: "1",
+    // "Listo para planificar" (confirmado via value-help de C4C produccion,
+    // ServiceRequestUserLifeCycleStatusUserLifeCycleStatusCodeCollection,
+    // 2026-07-30). Sin esto, C4C usa su default ("1"=Abierto) para todo
+    // ticket nuevo, que no es el estado desde el que el equipo de
+    // planificacion empieza a trabajarlo.
+    ServiceRequestUserLifeCycleStatusCode: "7",
     BuyerPartyID: input.buyerPartyId,
     ProductID: input.productId,
     InstallationPointID: input.installationPointId,

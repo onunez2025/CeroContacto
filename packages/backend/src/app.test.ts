@@ -129,6 +129,27 @@ describe("createApp", () => {
     expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
   });
 
+  it("GET /api/fechas-disponibles con departamento o codigoPostal de formato invalido devuelve fechas vacias sin llamar a C4C", async () => {
+    const app = createApp();
+
+    const invalidos = [
+      { departamento: "abc", codigoPostal: "07021" },
+      { departamento: "15", codigoPostal: "abc" },
+      { departamento: "150", codigoPostal: "07021" },
+      { departamento: "15", codigoPostal: "1" },
+      { departamento: "15|99", codigoPostal: "07021" },
+    ];
+
+    for (const { departamento, codigoPostal } of invalidos) {
+      const res = await request(app).get(
+        `/api/fechas-disponibles?departamento=${encodeURIComponent(departamento)}&codigoPostal=${encodeURIComponent(codigoPostal)}`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ fechas: [] });
+    }
+    expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
+  });
+
   it("las rutas /api/fechas-disponibles comparten un limite de 60 solicitudes por minuto por IP", async () => {
     mockGetFechasDisponibles.mockResolvedValue([]);
     const app = createApp();

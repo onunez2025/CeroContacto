@@ -370,4 +370,57 @@ describe("getFechasDisponibles", () => {
       expect((client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterFirst);
     });
   });
+
+  describe("concurrencia acotada y manejo de errores en el fan-out por candidata", () => {
+    it("propaga el rechazo si una candidata falla, y no lo cachea (reintenta en la siguiente llamada)", async () => {
+      let shouldFail = true;
+      const client = clientFromRouter(async (path) => {
+        if (path.includes("BO_RegionRootCollection")) return [region];
+        if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+        if (path.includes("CuposEmpresaFecha")) {
+          if (shouldFail) throw new Error("c4c down");
+          return [{ zCupFechLunes: true }];
+        }
+        return [];
+      });
+
+      await expect(getFechasDisponibles(baseFechasInput, client)).rejects.toThrow("c4c down");
+
+      // Una segunda llamada (ya sin la falla) no debe devolver un resultado
+      // cacheado vacio del intento fallido - debe volver a consultar C4C.
+      shouldFail = false;
+      const result = await getFechasDisponibles(baseFechasInput, client);
+      expect(result).toEqual([]);
+    });
+
+    it("acota la concurrencia del fan-out a CANDIDATOS_CONCURRENCIA_MAXIMA (8) solicitudes simultaneas", async () => {
+      const manyCandidates = Array.from({ length: 20 }, (_, i) => ({
+        ObjectID: `OBJ-${i}`,
+        zCupIdEmpresa: `EMP-${i}`,
+        zCupPrioridadNEw: 1,
+        zCupDepart: "15",
+        zCupactivo: true,
+      }));
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const client = clientFromRouter(async (path) => {
+        if (path.includes("BO_RegionRootCollection")) return [region];
+        if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return manyCandidates;
+        if (path.includes("CuposEmpresaFecha")) {
+          inFlight++;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight--;
+          return [{ zCupFechLunes: true }];
+        }
+        return [];
+      });
+
+      await getFechasDisponibles(baseFechasInput, client);
+
+      expect(maxInFlight).toBeLessThanOrEqual(8);
+      expect(maxInFlight).toBeGreaterThan(1); // sigue habiendo paralelismo real, no secuencial puro.
+    });
+  });
 });

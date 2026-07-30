@@ -64,7 +64,14 @@ export function createApp(): Express {
     const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
     const codigoPostal = typeof req.query.codigoPostal === "string" ? req.query.codigoPostal : "";
 
-    if (!departamento || !codigoPostal) {
+    // Formato valido ademas de no-vacio: acota el espacio de claves del
+    // cache en memoria de getFechasDisponibles (Map sin limite, indexado
+    // por estos dos valores) y evita mandar codigos postales/departamentos
+    // arbitrarios a producción de C4C (confirmado en revision final,
+    // 2026-07-30). Mismo patron de codigoPostal que ServiceRequestDto en
+    // shared (4 a 6 digitos); departamento es 1-2 digitos como en
+    // PERU_DEPARTAMENTOS ("01".."25").
+    if (!/^\d{1,2}$/.test(departamento) || !/^\d{4,6}$/.test(codigoPostal)) {
       res.status(200).json({ fechas: [] });
       return;
     }

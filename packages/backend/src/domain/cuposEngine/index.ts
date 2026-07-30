@@ -134,6 +134,34 @@ export async function getFechasDisponibles(input: FechasDisponiblesInput, client
   return fechasDisponibles;
 }
 
+/** Limite de solicitudes simultaneas a C4C por el fan-out de empresas candidatas. */
+const CANDIDATOS_CONCURRENCIA_MAXIMA = 8;
+
+/**
+ * Aplica `fn` a cada elemento de `items`, en lotes de a lo sumo `limit` en
+ * paralelo (no una unica Promise.all sin limite). Evita que un
+ * departamento con muchas empresas candidatas (Lima tiene ~20) dispare
+ * todas sus solicitudes a C4C produccion al mismo tiempo - confirmado en
+ * revision final (2026-07-30) como riesgo real bajo carga concurrente de
+ * varios usuarios a la vez, no solo un usuario aislado.
+ */
+async function mapWithConcurrencyLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      const item = items[index];
+      if (item === undefined) continue;
+      results[index] = await fn(item);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function computeFechasDisponibles(input: FechasDisponiblesInput, client: IC4CODataClient): Promise<string[]> {
   const region = await getRegionMeta(input.postalCode, client);
   if (!region?.zRegRegin) return [];
@@ -142,15 +170,15 @@ async function computeFechasDisponibles(input: FechasDisponiblesInput, client: I
   const candidates = await getCandidateCompanies(input.regionCode, client);
   if (candidates.length === 0) return [];
 
-  // Consultas independientes entre si - en paralelo en vez de secuenciales
+  // Consultas independientes entre si - en paralelo (acotado a
+  // CANDIDATOS_CONCURRENCIA_MAXIMA a la vez) en vez de secuenciales
   // (confirmado en vivo, 2026-07-30: ~20 candidatas tardaban ~21s en serie,
-  // ~1.2s en paralelo, acotado por la mas lenta en vez de la suma de todas).
-  const elegibles = await Promise.all(
-    candidates.map(async (candidate) => ({
-      zCupIdEmpresa: candidate.zCupIdEmpresa,
-      dias: await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client),
-    })),
-  );
+  // ~1.2s en paralelo sin limite - el limite evita que muchos usuarios
+  // concurrentes multipliquen ese fan-out sin control).
+  const elegibles = await mapWithConcurrencyLimit(candidates, CANDIDATOS_CONCURRENCIA_MAXIMA, async (candidate) => ({
+    zCupIdEmpresa: candidate.zCupIdEmpresa,
+    dias: await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client),
+  }));
 
   const cupos = await checkCapacidadRango(
     input.regionCode,

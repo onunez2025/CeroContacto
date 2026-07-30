@@ -3,6 +3,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { buildC4CClientFromEnv, buildProductCatalogClientFromEnv } from "./config.js";
 import { lookupCustomer, CustomerLookupQuerySchema } from "./domain/customerLookup/index.js";
 import { getFechasDisponibles } from "./domain/cuposEngine/index.js";
+import { hasActiveCoverage, searchPostalCodes } from "./domain/postalCodeLookup/index.js";
 import { PRODUCT_CATEGORIES, searchProducts } from "./domain/productCatalog/index.js";
 import { handleSubmitServiceRequest } from "./handlers/submitServiceRequest.js";
 import { createRateLimiter } from "./infra/rateLimiter.js";
@@ -85,6 +86,43 @@ export function createApp(): Express {
     } catch (err) {
       console.error("fechas_disponibles_failed", err);
       res.status(502).json({ error: "No pudimos consultar la disponibilidad en este momento." });
+    }
+  });
+
+  app.get("/api/codigos-postales", async (req, res) => {
+    const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
+    const q = typeof req.query.q === "string" ? req.query.q : "";
+
+    if (!departamento || !q) {
+      res.status(200).json({ resultados: [] });
+      return;
+    }
+
+    try {
+      const client = buildProductCatalogClientFromEnv();
+      const resultados = await searchPostalCodes(departamento, q, client);
+      res.status(200).json({ resultados });
+    } catch (err) {
+      console.error("codigos_postales_search_failed", err);
+      res.status(502).json({ error: "No pudimos buscar codigos postales en este momento." });
+    }
+  });
+
+  app.get("/api/codigos-postales/cobertura", async (req, res) => {
+    const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
+
+    if (!departamento) {
+      res.status(200).json({ tieneCobertura: false });
+      return;
+    }
+
+    try {
+      const client = buildProductCatalogClientFromEnv();
+      const tieneCobertura = await hasActiveCoverage(departamento, client);
+      res.status(200).json({ tieneCobertura });
+    } catch (err) {
+      console.error("codigos_postales_cobertura_failed", err);
+      res.status(502).json({ error: "No pudimos verificar la cobertura en este momento." });
     }
   });
 

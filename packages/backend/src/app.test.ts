@@ -24,6 +24,16 @@ vi.mock("./domain/customerLookup/index.js", async (importOriginal) => {
   return { ...actual, lookupCustomer: mockLookupCustomer };
 });
 
+const { mockSearchPostalCodes, mockHasActiveCoverage } = vi.hoisted(() => ({
+  mockSearchPostalCodes: vi.fn(),
+  mockHasActiveCoverage: vi.fn(),
+}));
+
+vi.mock("./domain/postalCodeLookup/index.js", () => ({
+  searchPostalCodes: mockSearchPostalCodes,
+  hasActiveCoverage: mockHasActiveCoverage,
+}));
+
 import { createApp } from "./app.js";
 
 const direccion = {
@@ -59,6 +69,9 @@ describe("createApp", () => {
     process.env.C4C_BASE_URL = "https://qa.example.com/sap/c4c/odata";
     process.env.C4C_USER = "_SYSODATA";
     process.env.C4C_PASSWORD = "secret";
+    process.env.C4C_CATALOG_BASE_URL = "https://prod.example.com/sap/c4c/odata";
+    process.env.C4C_CATALOG_USER = "_SYSODATA";
+    process.env.C4C_CATALOG_PASSWORD = "secret";
   });
 
   afterEach(() => {
@@ -66,6 +79,8 @@ describe("createApp", () => {
     mockOrchestration.mockReset();
     mockGetFechasDisponibles.mockReset();
     mockLookupCustomer.mockReset();
+    mockSearchPostalCodes.mockReset();
+    mockHasActiveCoverage.mockReset();
   });
 
   it("GET /health devuelve 200", async () => {
@@ -109,6 +124,40 @@ describe("createApp", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ fechas: [] });
     expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/codigos-postales devuelve los resultados de la busqueda", async () => {
+    mockSearchPostalCodes.mockResolvedValue([{ distrito: "SAN BORJA", codigoPostal: "15130" }]);
+
+    const res = await request(createApp()).get("/api/codigos-postales?departamento=15&q=san+borja");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ resultados: [{ distrito: "SAN BORJA", codigoPostal: "15130" }] });
+  });
+
+  it("GET /api/codigos-postales sin parametros devuelve resultados vacios sin llamar a C4C", async () => {
+    const res = await request(createApp()).get("/api/codigos-postales");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ resultados: [] });
+    expect(mockSearchPostalCodes).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/codigos-postales/cobertura devuelve tieneCobertura", async () => {
+    mockHasActiveCoverage.mockResolvedValue(true);
+
+    const res = await request(createApp()).get("/api/codigos-postales/cobertura?departamento=15");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ tieneCobertura: true });
+  });
+
+  it("GET /api/codigos-postales/cobertura sin departamento devuelve false sin llamar a C4C", async () => {
+    const res = await request(createApp()).get("/api/codigos-postales/cobertura");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ tieneCobertura: false });
+    expect(mockHasActiveCoverage).not.toHaveBeenCalled();
   });
 
   it("GET /api/clientes/lookup con cliente encontrado devuelve found:true", async () => {

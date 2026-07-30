@@ -56,7 +56,7 @@ export class C4CODataClient implements IC4CODataClient {
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.username = config.username;
     this.password = config.password;
-    this.timeoutMs = config.timeoutMs ?? 15_000;
+    this.timeoutMs = config.timeoutMs ?? 30_000;
     this.retryOptions = config.retry ?? defaultRetryOptions;
     this.logger = config.logger ?? consoleLogger;
   }

@@ -296,7 +296,17 @@ export default function App() {
     let cancelled = false;
     setCoverageStatus("checking");
     hasActiveCoverage(form.departamento).then((covered) => {
-      if (!cancelled) setCoverageStatus(covered ? "covered" : "not-covered");
+      if (cancelled) return;
+      setCoverageStatus(covered ? "covered" : "not-covered");
+      if (!covered) {
+        // Authoritative backstop: no matter which code path set `departamento`
+        // (manual select, customer-lookup autofill, etc.), a department with
+        // no active coverage must never leave a stale codigoPostal behind.
+        setForm((prev) => ({ ...prev, codigoPostal: "" }));
+        setPostalQuery("");
+        setPostalResults([]);
+        setPostalOpen(false);
+      }
     });
     return () => {
       cancelled = true;

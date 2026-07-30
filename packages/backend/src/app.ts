@@ -3,7 +3,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { buildC4CClientFromEnv, buildProductCatalogClientFromEnv } from "./config.js";
 import { lookupCustomer, CustomerLookupQuerySchema } from "./domain/customerLookup/index.js";
 import { getFechasDisponibles } from "./domain/cuposEngine/index.js";
-import { hasActiveCoverage, searchPostalCodes } from "./domain/postalCodeLookup/index.js";
+import { hasActiveCoverage, isValidPostalCode, searchPostalCodes } from "./domain/postalCodeLookup/index.js";
 import { PRODUCT_CATEGORIES, searchProducts } from "./domain/productCatalog/index.js";
 import { handleSubmitServiceRequest } from "./handlers/submitServiceRequest.js";
 import { createRateLimiter } from "./infra/rateLimiter.js";
@@ -89,26 +89,31 @@ export function createApp(): Express {
     }
   });
 
-  app.get("/api/codigos-postales", async (req, res) => {
+  // 30/min: mas generoso que el limite de /api/clientes/lookup (10/min) porque
+  // esta data no es PII, pero sigue siendo un endpoint publico que puede
+  // disparar consultas reales contra C4C produccion en cada keystroke.
+  const postalCodesRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
+
+  app.get("/api/codigos-postales", postalCodesRateLimiter, async (req, res) => {
     const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
     const q = typeof req.query.q === "string" ? req.query.q : "";
 
     if (!departamento || !q) {
-      res.status(200).json({ resultados: [] });
+      res.status(200).json({ resultados: [], hayMasResultados: false });
       return;
     }
 
     try {
       const client = buildProductCatalogClientFromEnv();
-      const resultados = await searchPostalCodes(departamento, q, client);
-      res.status(200).json({ resultados });
+      const result = await searchPostalCodes(departamento, q, client);
+      res.status(200).json(result);
     } catch (err) {
       console.error("codigos_postales_search_failed", err);
       res.status(502).json({ error: "No pudimos buscar codigos postales en este momento." });
     }
   });
 
-  app.get("/api/codigos-postales/cobertura", async (req, res) => {
+  app.get("/api/codigos-postales/cobertura", postalCodesRateLimiter, async (req, res) => {
     const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
 
     if (!departamento) {
@@ -123,6 +128,25 @@ export function createApp(): Express {
     } catch (err) {
       console.error("codigos_postales_cobertura_failed", err);
       res.status(502).json({ error: "No pudimos verificar la cobertura en este momento." });
+    }
+  });
+
+  app.get("/api/codigos-postales/validar", postalCodesRateLimiter, async (req, res) => {
+    const departamento = typeof req.query.departamento === "string" ? req.query.departamento : "";
+    const codigoPostal = typeof req.query.codigoPostal === "string" ? req.query.codigoPostal : "";
+
+    if (!departamento || !codigoPostal) {
+      res.status(200).json({ valido: false });
+      return;
+    }
+
+    try {
+      const client = buildProductCatalogClientFromEnv();
+      const valido = await isValidPostalCode(departamento, codigoPostal, client);
+      res.status(200).json({ valido });
+    } catch (err) {
+      console.error("codigos_postales_validar_failed", err);
+      res.status(502).json({ error: "No pudimos validar el codigo postal en este momento." });
     }
   });
 

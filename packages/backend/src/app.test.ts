@@ -24,14 +24,16 @@ vi.mock("./domain/customerLookup/index.js", async (importOriginal) => {
   return { ...actual, lookupCustomer: mockLookupCustomer };
 });
 
-const { mockSearchPostalCodes, mockHasActiveCoverage } = vi.hoisted(() => ({
+const { mockSearchPostalCodes, mockHasActiveCoverage, mockIsValidPostalCode } = vi.hoisted(() => ({
   mockSearchPostalCodes: vi.fn(),
   mockHasActiveCoverage: vi.fn(),
+  mockIsValidPostalCode: vi.fn(),
 }));
 
 vi.mock("./domain/postalCodeLookup/index.js", () => ({
   searchPostalCodes: mockSearchPostalCodes,
   hasActiveCoverage: mockHasActiveCoverage,
+  isValidPostalCode: mockIsValidPostalCode,
 }));
 
 import { createApp } from "./app.js";
@@ -81,6 +83,7 @@ describe("createApp", () => {
     mockLookupCustomer.mockReset();
     mockSearchPostalCodes.mockReset();
     mockHasActiveCoverage.mockReset();
+    mockIsValidPostalCode.mockReset();
   });
 
   it("GET /health devuelve 200", async () => {
@@ -126,20 +129,26 @@ describe("createApp", () => {
     expect(mockGetFechasDisponibles).not.toHaveBeenCalled();
   });
 
-  it("GET /api/codigos-postales devuelve los resultados de la busqueda", async () => {
-    mockSearchPostalCodes.mockResolvedValue([{ distrito: "SAN BORJA", codigoPostal: "15130" }]);
+  it("GET /api/codigos-postales devuelve los resultados de la busqueda y hayMasResultados", async () => {
+    mockSearchPostalCodes.mockResolvedValue({
+      resultados: [{ distrito: "SAN BORJA", codigoPostal: "15130" }],
+      hayMasResultados: true,
+    });
 
     const res = await request(createApp()).get("/api/codigos-postales?departamento=15&q=san+borja");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ resultados: [{ distrito: "SAN BORJA", codigoPostal: "15130" }] });
+    expect(res.body).toEqual({
+      resultados: [{ distrito: "SAN BORJA", codigoPostal: "15130" }],
+      hayMasResultados: true,
+    });
   });
 
   it("GET /api/codigos-postales sin parametros devuelve resultados vacios sin llamar a C4C", async () => {
     const res = await request(createApp()).get("/api/codigos-postales");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ resultados: [] });
+    expect(res.body).toEqual({ resultados: [], hayMasResultados: false });
     expect(mockSearchPostalCodes).not.toHaveBeenCalled();
   });
 
@@ -158,6 +167,75 @@ describe("createApp", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ tieneCobertura: false });
     expect(mockHasActiveCoverage).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/codigos-postales/validar devuelve valido:true cuando el codigo postal es valido", async () => {
+    mockIsValidPostalCode.mockResolvedValue(true);
+
+    const res = await request(createApp()).get("/api/codigos-postales/validar?departamento=15&codigoPostal=15130");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ valido: true });
+    expect(mockIsValidPostalCode).toHaveBeenCalledWith("15", "15130", expect.anything());
+  });
+
+  it("GET /api/codigos-postales/validar devuelve valido:false cuando el codigo postal no es valido", async () => {
+    mockIsValidPostalCode.mockResolvedValue(false);
+
+    const res = await request(createApp()).get("/api/codigos-postales/validar?departamento=15&codigoPostal=99999");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ valido: false });
+  });
+
+  it("GET /api/codigos-postales/validar sin parametros devuelve valido:false sin llamar a C4C", async () => {
+    const res = await request(createApp()).get("/api/codigos-postales/validar");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ valido: false });
+    expect(mockIsValidPostalCode).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/codigos-postales/validar con falla del dominio devuelve 502", async () => {
+    mockIsValidPostalCode.mockRejectedValue(new Error("c4c down"));
+
+    const res = await request(createApp()).get("/api/codigos-postales/validar?departamento=15&codigoPostal=15130");
+
+    expect(res.status).toBe(502);
+  });
+
+  it("las rutas /api/codigos-postales* comparten un limite de 30 solicitudes por minuto por IP", async () => {
+    mockHasActiveCoverage.mockResolvedValue(true);
+    const app = createApp();
+
+    for (let i = 0; i < 30; i++) {
+      const res = await request(app).get("/api/codigos-postales/cobertura?departamento=15");
+      expect(res.status).toBe(200);
+    }
+    const res = await request(app).get("/api/codigos-postales/cobertura?departamento=15");
+    expect(res.status).toBe(429);
+  });
+
+  it("el limite de /api/codigos-postales* se comparte entre las tres rutas (mismo balde por IP)", async () => {
+    mockHasActiveCoverage.mockResolvedValue(true);
+    mockSearchPostalCodes.mockResolvedValue({ resultados: [], hayMasResultados: false });
+    mockIsValidPostalCode.mockResolvedValue(true);
+    const app = createApp();
+
+    for (let i = 0; i < 10; i++) {
+      expect((await request(app).get("/api/codigos-postales/cobertura?departamento=15")).status).toBe(200);
+    }
+    for (let i = 0; i < 10; i++) {
+      expect((await request(app).get("/api/codigos-postales?departamento=15&q=san+borja")).status).toBe(200);
+    }
+    for (let i = 0; i < 10; i++) {
+      expect(
+        (await request(app).get("/api/codigos-postales/validar?departamento=15&codigoPostal=15130")).status,
+      ).toBe(200);
+    }
+
+    const res = await request(app).get("/api/codigos-postales/cobertura?departamento=15");
+    expect(res.status).toBe(429);
   });
 
   it("GET /api/clientes/lookup con cliente encontrado devuelve found:true", async () => {

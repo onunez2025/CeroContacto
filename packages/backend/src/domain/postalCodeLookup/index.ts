@@ -1,12 +1,59 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
-import type { PostalCodeMatch } from "./types.js";
+import type { PostalCodeSearchResult } from "./types.js";
 
 export * from "./types.js";
 
 const NS = "cust/v1/regionxdepartamento";
+const CACHE_TTL_MS = 10 * 60_000;
+/** Coincide con el $top de la consulta - si se alcanza, puede haber mas registros no traidos. */
+const POSSIBLE_TRUNCATION_THRESHOLD = 2000;
+
+interface ActiveRegionRecord {
+  zIDDistrito: string;
+  zPostalCodigo: string;
+}
+
+interface CacheEntry {
+  data: ActiveRegionRecord[];
+  expiresAt: number;
+}
+
+/**
+ * Cache en memoria (por departamento) del universo de zonas de cobertura
+ * ACTIVAS traido de C4C, sin filtrar por nombre. searchPostalCodes,
+ * hasActiveCoverage e isValidPostalCode comparten esta misma fuente para
+ * no repetir la misma consulta pesada a produccion en cada keystroke, en
+ * cada chequeo de cobertura y en cada validacion.
+ */
+const activeRecordsCache = new Map<string, CacheEntry>();
 
 function escapeODataString(value: string): string {
   return value.replace(/'/g, "''");
+}
+
+/** Solo para tests: limpia el cache en memoria entre casos (evita fugas entre tests que reusan el mismo departamento). */
+export function clearActiveRecordsCacheForTests(): void {
+  activeRecordsCache.clear();
+}
+
+async function getActiveRecords(departamento: string, client: IC4CODataClient): Promise<ActiveRegionRecord[]> {
+  const now = Date.now();
+  const cached = activeRecordsCache.get(departamento);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const filter = [`zRegDepart eq '${escapeODataString(departamento)}'`, `zRegactivo eq true`].join(" and ");
+  const results = await client.getCollection<ActiveRegionRecord>(
+    `${NS}/BO_RegionRootCollection?$filter=${encodeURIComponent(filter)}&$top=2000&$select=zIDDistrito,zPostalCodigo`,
+  );
+
+  if (results.length >= POSSIBLE_TRUNCATION_THRESHOLD) {
+    console.warn("postal_codes_possible_truncation", { departamento, count: results.length });
+  }
+
+  activeRecordsCache.set(departamento, { data: results, expiresAt: now + CACHE_TTL_MS });
+  return results;
 }
 
 /**
@@ -29,32 +76,43 @@ export async function searchPostalCodes(
   departamento: string,
   query: string,
   client: IC4CODataClient,
-): Promise<PostalCodeMatch[]> {
+): Promise<PostalCodeSearchResult> {
   const trimmed = query.trim();
-  if (!departamento || trimmed.length < 2) return [];
+  if (!departamento || trimmed.length < 2) return { resultados: [], hayMasResultados: false };
 
-  const filter = [`zRegDepart eq '${escapeODataString(departamento)}'`, `zRegactivo eq true`].join(" and ");
-
-  const results = await client.getCollection<{ zIDDistrito: string; zPostalCodigo: string }>(
-    `${NS}/BO_RegionRootCollection?$filter=${encodeURIComponent(filter)}&$top=2000&$select=zIDDistrito,zPostalCodigo`,
-  );
+  const results = await getActiveRecords(departamento, client);
 
   const needle = trimmed.toLowerCase();
-  return results
-    .filter((r) => r.zIDDistrito.toLowerCase().includes(needle))
-    .slice(0, 20)
-    .map((r) => ({ distrito: r.zIDDistrito, codigoPostal: r.zPostalCodigo }));
+  const matched = results.filter((r) => r.zIDDistrito.toLowerCase().includes(needle));
+
+  return {
+    resultados: matched.slice(0, 20).map((r) => ({ distrito: r.zIDDistrito, codigoPostal: r.zPostalCodigo })),
+    hayMasResultados: matched.length > 20,
+  };
 }
 
 /** true si el departamento tiene al menos una zona de cobertura activa (sin depender de texto de busqueda). */
 export async function hasActiveCoverage(departamento: string, client: IC4CODataClient): Promise<boolean> {
   if (!departamento) return false;
 
-  const filter = [`zRegDepart eq '${escapeODataString(departamento)}'`, `zRegactivo eq true`].join(" and ");
-
-  const results = await client.getCollection<{ zIDDistrito: string }>(
-    `${NS}/BO_RegionRootCollection?$filter=${encodeURIComponent(filter)}&$top=1&$select=zIDDistrito`,
-  );
-
+  const results = await getActiveRecords(departamento, client);
   return results.length > 0;
+}
+
+/**
+ * true si `codigoPostal` corresponde exactamente a una zona de cobertura
+ * activa dentro de `departamento`. Usado para revalidar un codigo postal
+ * autocompletado desde datos guardados de un cliente existente (ese valor
+ * nunca paso por esta tabla al momento de guardarse, y puede haber quedado
+ * desactualizado si la zona ya no esta activa).
+ */
+export async function isValidPostalCode(
+  departamento: string,
+  codigoPostal: string,
+  client: IC4CODataClient,
+): Promise<boolean> {
+  if (!departamento || !codigoPostal) return false;
+
+  const results = await getActiveRecords(departamento, client);
+  return results.some((r) => r.zPostalCodigo === codigoPostal);
 }

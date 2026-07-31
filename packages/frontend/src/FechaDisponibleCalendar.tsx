@@ -56,7 +56,7 @@ interface FechaDisponibleCalendarProps {
   error?: string;
 }
 
-type Estado = "cargando" | "error" | "vacio" | "listo";
+type Estado = "incompleto" | "cargando" | "error" | "vacio" | "listo";
 
 export function FechaDisponibleCalendar({
   departamento,
@@ -72,6 +72,19 @@ export function FechaDisponibleCalendar({
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
+    // El usuario puede llegar a este paso sin haber completado departamento
+    // o codigo postal (navegacion libre entre pasos, ver StepHeader/goToStep
+    // en App.tsx - no valida el paso anterior). Sin esta guarda, se consulta
+    // el backend con parametros vacios/invalidos (200, {fechas: []}) y se
+    // muestra el mensaje de "no tenemos fechas disponibles", que es enganoso:
+    // el problema real es que falta completar la direccion, no que no haya
+    // cupos (confirmado en vivo, 2026-07-31, ticket con codigoPostal vacio
+    // en la solicitud real a /api/fechas-disponibles).
+    if (!departamento || !codigoPostal) {
+      setEstado("incompleto");
+      return;
+    }
+
     let cancelado = false;
     setEstado("cargando");
 
@@ -96,6 +109,10 @@ export function FechaDisponibleCalendar({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departamento, codigoPostal, retryToken]);
+
+  if (estado === "incompleto") {
+    return <p className="hint">Completa el departamento y el codigo postal en el paso anterior para ver las fechas disponibles.</p>;
+  }
 
   if (estado === "cargando") {
     return <p className="hint">Buscando fechas disponibles...</p>;

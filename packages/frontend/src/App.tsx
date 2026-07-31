@@ -403,6 +403,21 @@ export default function App() {
     }, 300);
   }
 
+  /**
+   * El dropdown de Distrito (UBIGEO estatico) y el buscador de codigo
+   * postal (contra cobertura real de C4C) son independientes - elegir un
+   * distrito arriba no le da al cliente ninguna pista de que escribir en
+   * el buscador. Se dispara la busqueda automaticamente con el nombre del
+   * distrito elegido, para que los resultados aparezcan sin que el
+   * cliente tenga que volver a escribir lo mismo (confirmado como
+   * confusion real, 2026-07-31).
+   */
+  function handleDistritoChange(value: string) {
+    update("distrito", value);
+    const distrito = PERU_DISTRITOS.find((d) => d.id === value);
+    if (distrito) handlePostalQueryChange(distrito.nombre);
+  }
+
   function selectPostalMatch(item: PostalCodeMatch) {
     update("codigoPostal", item.codigoPostal);
     setPostalQuery(`${item.distrito} — ${item.codigoPostal}`);
@@ -685,7 +700,7 @@ export default function App() {
                   id="distrito"
                   value={form.distrito}
                   disabled={!form.provincia}
-                  onChange={(e) => update("distrito", e.target.value)}
+                  onChange={(e) => handleDistritoChange(e.target.value)}
                 >
                   <option value="">{form.provincia ? "Selecciona un distrito" : "Primero elige una provincia"}</option>
                   {PERU_DISTRITOS.filter((d) => d.provinciaId === form.provincia).map((d) => (

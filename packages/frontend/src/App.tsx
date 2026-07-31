@@ -184,6 +184,7 @@ function stepForField(path: string): number {
 
 export default function App() {
   const [form, setForm] = useState<FormState>(initialState);
+  const [showWelcome, setShowWelcome] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>("editing");
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -483,6 +484,23 @@ export default function App() {
       setPhase("editing");
       setSubmitError(err instanceof ApiError ? err.message : "No pudimos conectarnos con el servidor.");
     }
+  }
+
+  if (showWelcome) {
+    return (
+      <main className="page">
+        <HeroPanel />
+        <div className="card">
+        <div className="card__inner result-card">
+          <h1>¡Hola! Bienvenido a Cero Contacto</h1>
+          <p>Programa la instalación de tu equipo en 4 pasos rápidos.</p>
+          <button type="button" className="btn-primary" onClick={() => setShowWelcome(false)}>
+            Comenzar
+          </button>
+        </div>
+        </div>
+      </main>
+    );
   }
 
   if (phase === "done" && result) {

@@ -70,6 +70,37 @@ describe("searchPostalCodes", () => {
     });
   });
 
+  it("deduplica registros con el mismo distrito y codigo postal, quedandose con la primera aparicion", async () => {
+    const client = clientReturning([
+      { zIDDistrito: "Chorrillos, Santiago de Surco", zPostalCodigo: "15054" },
+      { zIDDistrito: "Chorrillos, Santiago de Surco", zPostalCodigo: "15054" },
+      { zIDDistrito: "Santiago de Surco, Chorrillos, Barranco", zPostalCodigo: "15063" },
+      { zIDDistrito: "Chorrillos, Santiago de Surco", zPostalCodigo: "15054" },
+    ]);
+
+    const result = await searchPostalCodes("15", "chorrillos", client);
+
+    expect(result).toEqual({
+      resultados: [
+        { distrito: "Chorrillos, Santiago de Surco", codigoPostal: "15054" },
+        { distrito: "Santiago de Surco, Chorrillos, Barranco", codigoPostal: "15063" },
+      ],
+      hayMasResultados: false,
+    });
+  });
+
+  it("hayMasResultados se calcula sobre el conteo YA deduplicado, no sobre los registros crudos", async () => {
+    const items = Array.from({ length: 25 }, () => ({ zIDDistrito: "Chorrillos", zPostalCodigo: "15057" }));
+    const client = clientReturning(items);
+
+    const result = await searchPostalCodes("15", "chorrillos", client);
+
+    expect(result).toEqual({
+      resultados: [{ distrito: "Chorrillos", codigoPostal: "15057" }],
+      hayMasResultados: false,
+    });
+  });
+
   it("marca hayMasResultados=true cuando hay mas de 20 coincidencias, recortando a 20", async () => {
     const items = Array.from({ length: 25 }, (_, i) => ({
       zIDDistrito: `Lurigancho Zona ${i}`,

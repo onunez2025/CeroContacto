@@ -1,5 +1,5 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
-import type { PostalCodeSearchResult } from "./types.js";
+import type { PostalCodeMatch, PostalCodeSearchResult } from "./types.js";
 
 export * from "./types.js";
 
@@ -71,6 +71,12 @@ async function getActiveRecords(departamento: string, client: IC4CODataClient): 
  * (confirmado en vivo: error 500 "funcion 'tolower' no soportada en
  * ABAP-Selektionsoptiones"). Se trae el universo activo del departamento
  * (maximo real observado ~660 registros) y se filtra en memoria.
+ *
+ * regionxdepartamento puede tener mas de un registro real para la misma
+ * combinacion distrito+codigo postal (confirmado en vivo, 2026-07-31 -
+ * probablemente asociados a distintas empresas/zonas que este buscador no
+ * expone) - se deduplican antes de devolver, quedandose con la primera
+ * aparicion de cada combinacion.
  */
 export async function searchPostalCodes(
   departamento: string,
@@ -85,9 +91,18 @@ export async function searchPostalCodes(
   const needle = trimmed.toLowerCase();
   const matched = results.filter((r) => r.zIDDistrito.toLowerCase().includes(needle));
 
+  const vistos = new Set<string>();
+  const deduplicados: PostalCodeMatch[] = [];
+  for (const r of matched) {
+    const clave = `${r.zIDDistrito}|${r.zPostalCodigo}`;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    deduplicados.push({ distrito: r.zIDDistrito, codigoPostal: r.zPostalCodigo });
+  }
+
   return {
-    resultados: matched.slice(0, 20).map((r) => ({ distrito: r.zIDDistrito, codigoPostal: r.zPostalCodigo })),
-    hayMasResultados: matched.length > 20,
+    resultados: deduplicados.slice(0, 20),
+    hayMasResultados: deduplicados.length > 20,
   };
 }
 

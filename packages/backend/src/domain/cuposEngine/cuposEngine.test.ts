@@ -385,12 +385,16 @@ describe("getFechasDisponibles", () => {
       });
 
       await expect(getFechasDisponibles(baseFechasInput, client)).rejects.toThrow("c4c down");
+      const callsAfterFailure = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length;
 
       // Una segunda llamada (ya sin la falla) no debe devolver un resultado
-      // cacheado vacio del intento fallido - debe volver a consultar C4C.
+      // cacheado del intento fallido - debe volver a consultar C4C de cero.
+      // Si el intento fallido se hubiera cacheado, esta llamada no generaria
+      // ninguna solicitud nueva (mismo bug que se quiere evitar).
       shouldFail = false;
-      const result = await getFechasDisponibles(baseFechasInput, client);
-      expect(result).toEqual([]);
+      await getFechasDisponibles(baseFechasInput, client);
+
+      expect((client.getCollection as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterFailure);
     });
 
     it("acota la concurrencia del fan-out a CANDIDATOS_CONCURRENCIA_MAXIMA (8) solicitudes simultaneas", async () => {

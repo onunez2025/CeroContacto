@@ -850,7 +850,12 @@ export default function App() {
             </div>
 
             <div className="step-actions">
-              <button type="button" className="btn-primary" onClick={() => goToStep(2)}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={Boolean(fieldErrors.numeroDocumento || fieldErrors.telefono || fieldErrors.email)}
+                onClick={() => goToStep(2)}
+              >
                 Siguiente
               </button>
             </div>

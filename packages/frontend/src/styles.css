@@ -400,6 +400,7 @@ select:disabled {
   justify-content: center;
   text-align: center;
   padding-top: 0;
+  padding-bottom: 0;
 }
 
 .spinner {

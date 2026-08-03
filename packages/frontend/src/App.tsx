@@ -83,6 +83,59 @@ const initialState: FormState = {
   consentimiento: false,
 };
 
+const FORM_PROGRESS_KEY = "cerocontacto:form-progress";
+const FORM_PROGRESS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface StoredProgress {
+  savedAt: number;
+  form: FormState;
+}
+
+/**
+ * Lee el progreso guardado en localStorage, si existe, no tiene mas de
+ * 24h, y tiene la forma esperada. Cualquier fallo (JSON invalido,
+ * localStorage deshabilitado, forma inesperada) se descarta en
+ * silencio y se usa initialState - un dato corrupto o viejo nunca debe
+ * romper la carga del formulario.
+ */
+function loadStoredProgress(): FormState {
+  try {
+    const raw = localStorage.getItem(FORM_PROGRESS_KEY);
+    if (!raw) return initialState;
+    const parsed = JSON.parse(raw) as Partial<StoredProgress>;
+    if (typeof parsed.savedAt !== "number" || Date.now() - parsed.savedAt > FORM_PROGRESS_MAX_AGE_MS) {
+      return initialState;
+    }
+    if (!parsed.form || typeof parsed.form !== "object") return initialState;
+    const productos = Array.isArray(parsed.form.productos) && parsed.form.productos.length > 0
+      ? parsed.form.productos
+      : initialState.productos;
+    return { ...initialState, ...parsed.form, productos };
+  } catch {
+    return initialState;
+  }
+}
+
+function saveProgress(form: FormState): void {
+  try {
+    const toStore: StoredProgress = {
+      savedAt: Date.now(),
+      form: { ...form, productos: form.productos.map((p) => ({ ...p, fotos: [] })) },
+    };
+    localStorage.setItem(FORM_PROGRESS_KEY, JSON.stringify(toStore));
+  } catch {
+    // localStorage puede fallar (modo incognito, cuota excedida) - no bloquea el uso del formulario.
+  }
+}
+
+function clearStoredProgress(): void {
+  try {
+    localStorage.removeItem(FORM_PROGRESS_KEY);
+  } catch {
+    // no-op
+  }
+}
+
 function buildSubmission(form: FormState): unknown {
   const common = {
     telefono: form.telefono.trim(),
@@ -189,7 +242,7 @@ function stepForField(path: string): number {
 }
 
 export default function App() {
-  const [form, setForm] = useState<FormState>(initialState);
+  const [form, setForm] = useState<FormState>(loadStoredProgress);
   const [showWelcome, setShowWelcome] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>("editing");
@@ -204,11 +257,22 @@ export default function App() {
     numeroDocumentoRef.current = form.numeroDocumento;
   }, [form.numeroDocumento]);
 
+  useEffect(() => {
+    saveProgress(form);
+  }, [form]);
+
   const DOCUMENT_VALIDATORS: Record<FormState["tipoDocumento"], (v: string) => boolean> = {
     DNI: isValidDni,
     CE: isValidCe,
     RUC: isValidRuc,
   };
+
+  // Mismo patron que PHONE_REGEX en shared/schemas/serviceRequestDto.ts -
+  // duplicado a proposito (validacion temprana en el frontend, no
+  // autoritativa) para no depender de un export interno de shared solo
+  // para esto. La validacion final sigue siendo el schema Zod al enviar.
+  const PHONE_FORMAT_REGEX = /^\+?\d{7,15}$/;
+  const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   function clearAutofilledFields() {
     setForm((prev) => ({
@@ -229,8 +293,25 @@ export default function App() {
     }));
   }
 
+  function validateOnBlur(key: string, value: string, isValid: (v: string) => boolean, message: string) {
+    const trimmed = value.trim();
+    if (!trimmed || isValid(trimmed)) return;
+    setFieldErrors((prev) => ({ ...prev, [key]: message }));
+  }
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
   async function handleDocumentoBlur() {
     const numeroDocumento = form.numeroDocumento.trim();
+    const tipoLabel = form.tipoDocumento === "RUC" ? "RUC" : form.tipoDocumento === "CE" ? "Carné de extranjería" : "DNI";
+    validateOnBlur("numeroDocumento", numeroDocumento, DOCUMENT_VALIDATORS[form.tipoDocumento], `${tipoLabel} inválido`);
     if (!DOCUMENT_VALIDATORS[form.tipoDocumento](numeroDocumento)) return;
 
     setCustomerLookupStatus("loading");
@@ -296,6 +377,7 @@ export default function App() {
       setCustomerLookupStatus("idle");
     }
     update("numeroDocumento", value);
+    clearFieldError("numeroDocumento");
   }
 
   const [coverageStatus, setCoverageStatus] = useState<"idle" | "checking" | "covered" | "not-covered" | "error">(
@@ -485,6 +567,7 @@ export default function App() {
       const submission: ServiceRequestSubmission = parsed.data;
       const res = await submitServiceRequest(submission);
       setResult(res);
+      clearStoredProgress();
       setPhase("done");
     } catch (err) {
       setPhase("editing");
@@ -640,7 +723,11 @@ export default function App() {
                   type="text"
                   placeholder="+51 9XXXXXXXX"
                   value={form.telefono}
-                  onChange={(e) => update("telefono", e.target.value)}
+                  onChange={(e) => {
+                    update("telefono", e.target.value);
+                    clearFieldError("telefono");
+                  }}
+                  onBlur={() => validateOnBlur("telefono", form.telefono, (v) => PHONE_FORMAT_REGEX.test(v), "Teléfono inválido")}
                 />
                 <FieldError message={fieldErrors.telefono} />
               </div>
@@ -659,7 +746,16 @@ export default function App() {
 
             <div className="field">
               <label htmlFor="email">Email</label>
-              <input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} />
+              <input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => {
+                  update("email", e.target.value);
+                  clearFieldError("email");
+                }}
+                onBlur={() => validateOnBlur("email", form.email, (v) => EMAIL_FORMAT_REGEX.test(v), "Email inválido")}
+              />
               <FieldError message={fieldErrors.email} />
             </div>
 

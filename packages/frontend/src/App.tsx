@@ -264,6 +264,10 @@ function stepForField(path: string): number {
   return 1;
 }
 
+function sanitizeDigits(value: string, maxLen: number): string {
+  return value.replace(/\D/g, "").slice(0, maxLen);
+}
+
 export default function App() {
   const [form, setForm] = useState<FormState>(loadStoredProgress);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -308,7 +312,7 @@ export default function App() {
   // duplicado a proposito (validacion temprana en el frontend, no
   // autoritativa) para no depender de un export interno de shared solo
   // para esto. La validacion final sigue siendo el schema Zod al enviar.
-  const PHONE_FORMAT_REGEX = /^\+?\d{7,15}$/;
+  const PHONE_FORMAT_REGEX = /^\d{9}$/;
   const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   function clearAutofilledFields() {
@@ -408,12 +412,14 @@ export default function App() {
   }
 
   function handleDocumentoChange(value: string) {
-    if (lookedUpDocumento !== null && value !== lookedUpDocumento) {
+    const maxLen = form.tipoDocumento === "DNI" ? 8 : form.tipoDocumento === "RUC" ? 11 : null;
+    const sanitized = maxLen !== null ? sanitizeDigits(value, maxLen) : value;
+    if (lookedUpDocumento !== null && sanitized !== lookedUpDocumento) {
       clearAutofilledFields();
       setLookedUpDocumento(null);
       setCustomerLookupStatus("idle");
     }
-    update("numeroDocumento", value);
+    update("numeroDocumento", sanitized);
     clearFieldError("numeroDocumento");
   }
 
@@ -743,6 +749,7 @@ export default function App() {
               <input
                 id="numeroDocumento"
                 type="text"
+                maxLength={form.tipoDocumento === "CE" ? 12 : undefined}
                 value={form.numeroDocumento}
                 onChange={(e) => handleDocumentoChange(e.target.value)}
                 onBlur={handleDocumentoBlur}
@@ -791,10 +798,10 @@ export default function App() {
                 <input
                   id="telefono"
                   type="text"
-                  placeholder="+51 9XXXXXXXX"
+                  placeholder="9XXXXXXXX"
                   value={form.telefono}
                   onChange={(e) => {
-                    update("telefono", e.target.value);
+                    update("telefono", sanitizeDigits(e.target.value, 9));
                     clearFieldError("telefono");
                   }}
                   onBlur={() => validateOnBlur("telefono", form.telefono, (v) => PHONE_FORMAT_REGEX.test(v), "Teléfono inválido")}
@@ -806,9 +813,9 @@ export default function App() {
                 <input
                   id="telefono2"
                   type="text"
-                  placeholder="+51 9XXXXXXXX"
+                  placeholder="9XXXXXXXX"
                   value={form.telefono2}
-                  onChange={(e) => update("telefono2", e.target.value)}
+                  onChange={(e) => update("telefono2", sanitizeDigits(e.target.value, 9))}
                 />
                 <FieldError message={fieldErrors.telefono2} />
               </div>

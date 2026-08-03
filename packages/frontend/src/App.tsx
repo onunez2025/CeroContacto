@@ -285,14 +285,16 @@ export default function App() {
   // una edicion real - guardarlo re-marcaria savedAt con datos que ya
   // podian tener horas o dias, haciendo que la expiracion de 24h nunca
   // se cumpla para un visitante que entra a diario (hallazgo de revision
-  // final, 2026-08-03). A partir del segundo render (una edicion real
-  // del usuario) si se guarda, refrescando savedAt correctamente.
-  const isFirstFormRender = useRef(true);
+  // final, 2026-08-03). Se compara por IDENTIDAD contra el `form` con el
+  // que arranco el componente (no un booleano) para que el guard siga
+  // funcionando bien incluso bajo el doble-invocado de efectos de
+  // StrictMode en desarrollo (confirmado en vivo: con un booleano simple,
+  // la segunda invocacion de StrictMode ya lo encontraba en `false` y
+  // guardaba de todos modos - solo se notaba en `npm run dev`, no en un
+  // build de produccion real).
+  const initialFormRef = useRef(form);
   useEffect(() => {
-    if (isFirstFormRender.current) {
-      isFirstFormRender.current = false;
-      return;
-    }
+    if (form === initialFormRef.current) return;
     saveProgress(form);
   }, [form]);
 

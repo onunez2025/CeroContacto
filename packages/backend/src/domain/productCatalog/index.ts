@@ -45,10 +45,11 @@ export async function searchProducts(
   const trimmed = query.trim();
   if (!CATEGORY_IDS.has(categoriaId) || trimmed.length < 2) return [];
 
+  const texto = escapeODataString(trimmed.toUpperCase());
   const filter = [
     `ProductCategoryID eq '${escapeODataString(categoriaId)}'`,
     `Status eq '2'`,
-    `substringof('${escapeODataString(trimmed.toUpperCase())}',Description)`,
+    `(substringof('${texto}',Description) or substringof('${texto}',ProductID))`,
   ].join(" and ");
 
   const results = await client.getCollection<{ ProductID: string; Description: string }>(

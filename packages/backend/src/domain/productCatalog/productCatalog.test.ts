@@ -42,4 +42,14 @@ describe("searchProducts", () => {
     expect(path).toContain("Status%20eq%20'2'");
     expect(path).toContain("substringof('DUBAI',Description)".replace(/[()',]/g, (c) => encodeURIComponent(c)));
   });
+
+  it("tambien matchea por ProductID (busqueda por codigo, no solo por descripcion)", async () => {
+    const client = clientReturning([{ ProductID: "10008026", Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }]);
+
+    const result = await searchProducts("SCP000000", "10008026", client);
+
+    expect(result).toEqual([{ productId: "10008026", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }]);
+    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(path).toContain("substringof('10008026',ProductID)".replace(/[()',]/g, (c) => encodeURIComponent(c)));
+  });
 });

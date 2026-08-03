@@ -280,7 +280,19 @@ export default function App() {
     numeroDocumentoRef.current = form.numeroDocumento;
   }, [form.numeroDocumento]);
 
+  // No guardar en el primer render: ese "cambio" es solo el progreso que
+  // ya se acaba de leer de localStorage (o el estado inicial vacio), no
+  // una edicion real - guardarlo re-marcaria savedAt con datos que ya
+  // podian tener horas o dias, haciendo que la expiracion de 24h nunca
+  // se cumpla para un visitante que entra a diario (hallazgo de revision
+  // final, 2026-08-03). A partir del segundo render (una edicion real
+  // del usuario) si se guarda, refrescando savedAt correctamente.
+  const isFirstFormRender = useRef(true);
   useEffect(() => {
+    if (isFirstFormRender.current) {
+      isFirstFormRender.current = false;
+      return;
+    }
     saveProgress(form);
   }, [form]);
 
@@ -677,6 +689,15 @@ export default function App() {
             type="button"
             className="btn-secondary"
             onClick={() => {
+              // Si la solicitud ya se envio con exito, no dejar los datos ya
+              // enviados en el formulario (ni en localStorage, ya limpiado
+              // por clearStoredProgress) - editar cualquier campo desde aca
+              // los volveria a guardar. Si fallo el envio, el cliente
+              // vuelve a ver sus datos tal como los dejo, para poder
+              // reintentar sin volver a escribir todo.
+              if (result.status === "Completed") {
+                setForm(initialState);
+              }
               setPhase("editing");
               setResult(null);
               setStep(1);

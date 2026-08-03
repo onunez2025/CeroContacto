@@ -545,7 +545,11 @@ select:disabled {
 
 .autocomplete-list li.is-highlighted,
 .autocomplete-list li.is-highlighted button {
-  background: var(--bg-sunken);
+  /* --bg-sunken (#fafafa) sobre fondo blanco tenia ~1.04:1 de contraste -
+     practicamente invisible (hallazgo de revision final, 2026-08-03). Un
+     tinte del color primario da contraste real, visible para navegacion
+     por teclado sin verse tan fuerte como :hover. */
+  background: rgba(76, 95, 128, 0.15);
 }
 
 .foto-grid {

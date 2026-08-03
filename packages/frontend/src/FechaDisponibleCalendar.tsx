@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, getFechasDisponibles } from "./api.js";
 import { FieldError } from "./FieldError.js";
+import { Spinner } from "./Spinner.js";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -115,7 +116,7 @@ export function FechaDisponibleCalendar({
   }
 
   if (estado === "cargando") {
-    return <p className="hint">Buscando fechas disponibles...</p>;
+    return <p className="hint"><Spinner />Buscando fechas disponibles...</p>;
   }
 
   if (estado === "error") {

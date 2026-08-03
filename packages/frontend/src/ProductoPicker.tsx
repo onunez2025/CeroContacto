@@ -3,6 +3,7 @@ import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { resizeImageToDataUrl } from "./imageResize.js";
 import { PRODUCT_CATEGORIES } from "./productCategories.js";
+import { Spinner } from "./Spinner.js";
 
 const MAX_FOTOS = 6;
 
@@ -154,7 +155,7 @@ export function ProductoPicker({
           {open ? (
             <ul className="autocomplete-list">
               {loading ? (
-                <li className="autocomplete-loading">Buscando...</li>
+                <li className="autocomplete-loading"><Spinner />Buscando...</li>
               ) : searchError ? (
                 <li className="autocomplete-loading autocomplete-error">{searchError}</li>
               ) : results.length === 0 ? (

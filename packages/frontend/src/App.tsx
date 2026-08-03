@@ -18,6 +18,7 @@ import { PERU_PROVINCIAS } from "./peruProvincias.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
+import { Spinner } from "./Spinner.js";
 
 interface ProductoForm {
   numeroSerie: string;
@@ -491,7 +492,7 @@ export default function App() {
       <main className="page">
         <HeroPanel />
         <div className="card">
-        <div className="card__inner result-card">
+        <div className="card__inner welcome-card">
           <h1>¡Hola! Bienvenido a Cero Contacto</h1>
           <p>Programa la instalación de tu equipo en 4 pasos rápidos.</p>
           <button type="button" className="btn-primary" onClick={() => setShowWelcome(false)}>
@@ -588,7 +589,7 @@ export default function App() {
                 onBlur={handleDocumentoBlur}
               />
               <FieldError message={fieldErrors.numeroDocumento} />
-              {customerLookupStatus === "loading" && <p className="hint">Buscando...</p>}
+              {customerLookupStatus === "loading" && <p className="hint"><Spinner />Buscando...</p>}
               {customerLookupStatus === "found" && <p className="hint">Datos encontrados, puedes corregirlos si cambiaron.</p>}
             </div>
 
@@ -787,7 +788,7 @@ export default function App() {
                       {postalOpen ? (
                         <ul className="autocomplete-list">
                           {postalLoading ? (
-                            <li className="autocomplete-loading">Buscando...</li>
+                            <li className="autocomplete-loading"><Spinner />Buscando...</li>
                           ) : postalSearchError ? (
                             <li className="autocomplete-loading autocomplete-error">{postalSearchError}</li>
                           ) : postalResults.length === 0 ? (

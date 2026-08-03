@@ -92,6 +92,26 @@ interface StoredProgress {
 }
 
 /**
+ * Valida que un item de productos guardado tenga la forma minima
+ * esperada de ProductoForm - sin esto, un item con forma inesperada
+ * (ej. `fotos` ausente/no-array de una version anterior del formulario)
+ * pasaria el chequeo de "es un array" pero rompería el render en cuanto
+ * el usuario llegue al paso de Equipos (ProductoPicker hace
+ * `fotos.length`, que lanza si `fotos` es `undefined`).
+ */
+function isValidStoredProducto(item: unknown): item is ProductoForm {
+  if (!item || typeof item !== "object") return false;
+  const p = item as Record<string, unknown>;
+  return (
+    typeof p.numeroSerie === "string" &&
+    typeof p.productId === "string" &&
+    typeof p.categoria === "string" &&
+    typeof p.productNombre === "string" &&
+    Array.isArray(p.fotos)
+  );
+}
+
+/**
  * Lee el progreso guardado en localStorage, si existe, no tiene mas de
  * 24h, y tiene la forma esperada. Cualquier fallo (JSON invalido,
  * localStorage deshabilitado, forma inesperada) se descarta en
@@ -106,8 +126,10 @@ function loadStoredProgress(): FormState {
     if (typeof parsed.savedAt !== "number" || Date.now() - parsed.savedAt > FORM_PROGRESS_MAX_AGE_MS) {
       return initialState;
     }
-    if (!parsed.form || typeof parsed.form !== "object") return initialState;
-    const productos = Array.isArray(parsed.form.productos) && parsed.form.productos.length > 0
+    if (!parsed.form || typeof parsed.form !== "object" || Array.isArray(parsed.form)) return initialState;
+    const productos = Array.isArray(parsed.form.productos) &&
+      parsed.form.productos.length > 0 &&
+      parsed.form.productos.every(isValidStoredProducto)
       ? parsed.form.productos
       : initialState.productos;
     return { ...initialState, ...parsed.form, productos };

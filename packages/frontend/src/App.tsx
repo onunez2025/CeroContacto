@@ -755,7 +755,7 @@ export default function App() {
                 onBlur={handleDocumentoBlur}
               />
               <FieldError message={fieldErrors.numeroDocumento} />
-              {customerLookupStatus === "loading" && <p className="hint"><Spinner />Buscando...</p>}
+              {customerLookupStatus === "loading" && <p className="hint hint-validating"><Spinner />Estamos validando el número de documento.</p>}
               {customerLookupStatus === "found" && <p className="hint">Datos encontrados, puedes corregirlos si cambiaron.</p>}
             </div>
 

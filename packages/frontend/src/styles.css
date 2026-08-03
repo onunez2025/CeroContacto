@@ -296,6 +296,10 @@ select:disabled {
   margin: 0.35rem 0 0;
 }
 
+.hint-validating {
+  color: var(--error);
+}
+
 .choice-row {
   display: flex;
   gap: 0.6rem;

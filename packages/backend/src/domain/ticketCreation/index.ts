@@ -65,12 +65,6 @@ export async function createTicket(
     ProcessingTypeCode: "SRRQ",
     ServicePriorityCode: "3",
     DataOriginTypeCode: "1",
-    // "Listo para planificar" (confirmado via value-help de C4C produccion,
-    // ServiceRequestUserLifeCycleStatusUserLifeCycleStatusCodeCollection,
-    // 2026-07-30). Sin esto, C4C usa su default ("1"=Abierto) para todo
-    // ticket nuevo, que no es el estado desde el que el equipo de
-    // planificacion empieza a trabajarlo.
-    ServiceRequestUserLifeCycleStatusCode: "7",
     BuyerPartyID: input.buyerPartyId,
     ProductID: input.productId,
     InstallationPointID: input.installationPointId,
@@ -91,6 +85,26 @@ export async function createTicket(
     ...(input.reservationId ? { zIDRegistroCupoArea_SDK: input.reservationId } : {}),
     ServiceRequestItem: [DEFAULT_SERVICE_ITEM],
   });
+
+  // "Listo para planificar" se aplica con un PATCH DESPUES de crear, no en
+  // el POST inicial: confirmado en vivo (2026-08-03) que enviarlo dentro
+  // del POST produce un 500 real de C4C ("Inconsistencia en gestion de
+  // estados entre estado de sistema y estado") - el estado de sistema
+  // (ServiceRequestLifeCycleStatusCode, no controlado por nosotros)
+  // arranca en un valor que no es compatible con este estado de usuario
+  // en el momento de la creacion. La transicion via PATCH sobre un ticket
+  // ya creado si funciona (confirmado en el ticket real 1399562). Si el
+  // PATCH falla, no se aborta la creacion - el ticket ya existe y es
+  // usable (el asesor lo cambia de estado manualmente, como se hacia
+  // antes de este cambio), solo se pierde la conveniencia del estado
+  // inicial automatico.
+  try {
+    await client.patch(`${NS}/ServiceRequestCollection('${created.ObjectID}')`, {
+      ServiceRequestUserLifeCycleStatusCode: "7",
+    });
+  } catch (err) {
+    console.warn("ticket_status_patch_failed", { ticketObjectId: created.ObjectID, err });
+  }
 
   if (input.comentario?.trim()) {
     await client.postEntity(`${NS}/ServiceRequestCollection('${created.ObjectID}')/ServiceRequestTextCollection`, {

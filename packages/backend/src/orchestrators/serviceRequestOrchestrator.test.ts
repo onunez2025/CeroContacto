@@ -69,9 +69,15 @@ describe("runServiceRequestOrchestration", () => {
     expect(ticketBody.InstallationPointID).toBe("420434");
     expect(ticketBody.zTicketIDProvinciacontent_SDK).toBe("128");
     expect(ticketBody.zTicketIDDistritocontent_SDK).toBe("1254");
-    // "Listo para planificar" (codigo 7) - confirmado via value-help de C4C
-    // produccion, no el default "Abierto" (1) que aplica si no se envia.
-    expect(ticketBody.ServiceRequestUserLifeCycleStatusCode).toBe("7");
+    // "Listo para planificar" (codigo 7) NO se envia en el POST de creacion -
+    // confirmado en vivo (2026-08-03) que produce un 500 real de C4C
+    // ("Inconsistencia en gestion de estados entre estado de sistema y
+    // estado"). Se aplica con un PATCH aparte despues de creado.
+    expect(ticketBody).not.toHaveProperty("ServiceRequestUserLifeCycleStatusCode");
+    expect(client.patch).toHaveBeenCalledWith(
+      expect.stringContaining("ServiceRequestCollection('TICKETOBJ')"),
+      { ServiceRequestUserLifeCycleStatusCode: "7" },
+    );
     // Name se envia explicitamente en hora local de Lima (UTC-5), formato
     // "YYYY-MM-DDTHH:mm:ss" igual al default que usa C4C cuando no se envia.
     expect(ticketBody.Name).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
@@ -89,6 +95,19 @@ describe("runServiceRequestOrchestration", () => {
     expect(noteCall[1].TypeCode).toBe("10004");
     expect(noteCall[1].Text).toContain("Medio de contacto preferido: WhatsApp");
     expect(noteCall[1].Text).toContain("Lugar de compra: SODIMAC PERU S.A.");
+  });
+
+  it("no aborta la creacion del ticket si el PATCH de estado falla", async () => {
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "TICKETOBJ", ID: "138320" });
+    const client = clientFromRouter(happyPathRouter, postEntity);
+    (client.patch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("c4c down"));
+
+    const result = await runServiceRequestOrchestration(submission, client);
+
+    // El ticket ya se creo (POST exitoso) antes del PATCH - una falla del
+    // PATCH no debe convertir esto en un Failed, el ticket sigue siendo
+    // usable (el asesor cambia el estado manualmente despues).
+    expect(result).toEqual({ status: "Completed", ticketIds: ["138320"] });
   });
 
   it("Name usa la hora local de Lima (UTC-5), no la hora del servidor", async () => {

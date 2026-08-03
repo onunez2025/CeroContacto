@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
@@ -45,6 +46,7 @@ export function ProductoPicker({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [processingFotos, setProcessingFotos] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -61,6 +63,7 @@ export function ProductoPicker({
       setResults([]);
       setSearchError(null);
       setOpen(false);
+      setHighlightedIndex(-1);
       return;
     }
 
@@ -72,11 +75,13 @@ export function ProductoPicker({
         .then((items) => {
           setResults(items);
           setOpen(true);
+          setHighlightedIndex(-1);
         })
         .catch((err: unknown) => {
           setSearchError(err instanceof ApiError ? err.message : "No pudimos buscar productos. Intenta de nuevo.");
           setResults([]);
           setOpen(true);
+          setHighlightedIndex(-1);
         })
         .finally(() => setLoading(false));
     }, 300);
@@ -87,6 +92,26 @@ export function ProductoPicker({
     setQuery(item.nombre);
     setResults([]);
     setOpen(false);
+  }
+
+  function handleInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (!open || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      const highlighted = highlightedIndex >= 0 ? results[highlightedIndex] : undefined;
+      if (highlighted) {
+        e.preventDefault();
+        selectItem(highlighted);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setHighlightedIndex(-1);
+    }
   }
 
   async function handleFotosSelected(fileList: FileList | null) {
@@ -146,6 +171,11 @@ export function ProductoPicker({
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => results.length > 0 && setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onKeyDown={handleInputKeyDown}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={`${idPrefix}-modelo-listbox`}
+            aria-activedescendant={highlightedIndex >= 0 ? `${idPrefix}-modelo-option-${highlightedIndex}` : undefined}
           />
           {productId ? (
             <span className="autocomplete-check" aria-hidden="true">
@@ -153,7 +183,7 @@ export function ProductoPicker({
             </span>
           ) : null}
           {open ? (
-            <ul className="autocomplete-list">
+            <ul className="autocomplete-list" id={`${idPrefix}-modelo-listbox`} role="listbox">
               {loading ? (
                 <li className="autocomplete-loading"><Spinner />Buscando...</li>
               ) : searchError ? (
@@ -161,8 +191,14 @@ export function ProductoPicker({
               ) : results.length === 0 ? (
                 <li className="autocomplete-loading">Sin resultados para "{query}"</li>
               ) : (
-                results.map((item) => (
-                  <li key={item.productId}>
+                results.map((item, index) => (
+                  <li
+                    key={item.productId}
+                    id={`${idPrefix}-modelo-option-${index}`}
+                    role="option"
+                    aria-selected={index === highlightedIndex}
+                    className={index === highlightedIndex ? "is-highlighted" : undefined}
+                  >
                     <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selectItem(item)}>
                       {item.nombre}
                     </button>

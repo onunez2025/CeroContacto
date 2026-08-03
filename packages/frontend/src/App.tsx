@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema, isValidCe, isValidDni, isValidRuc } from "@cerocontacto/shared";
@@ -409,6 +410,7 @@ export default function App() {
   const [postalResults, setPostalResults] = useState<PostalCodeMatch[]>([]);
   const [postalHasMore, setPostalHasMore] = useState(false);
   const [postalOpen, setPostalOpen] = useState(false);
+  const [postalHighlightedIndex, setPostalHighlightedIndex] = useState(-1);
   const [postalLoading, setPostalLoading] = useState(false);
   const [postalSearchError, setPostalSearchError] = useState<string | null>(null);
   const postalDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -480,6 +482,7 @@ export default function App() {
       setPostalHasMore(false);
       setPostalSearchError(null);
       setPostalOpen(false);
+      setPostalHighlightedIndex(-1);
       return;
     }
 
@@ -498,6 +501,7 @@ export default function App() {
           if (requestId !== postalRequestIdRef.current) return;
           setPostalResults(resultados);
           setPostalHasMore(hayMasResultados);
+          setPostalHighlightedIndex(-1);
         })
         .catch((err: unknown) => {
           if (requestId !== postalRequestIdRef.current) return;
@@ -506,6 +510,7 @@ export default function App() {
           );
           setPostalResults([]);
           setPostalHasMore(false);
+          setPostalHighlightedIndex(-1);
         })
         .finally(() => {
           if (requestId !== postalRequestIdRef.current) return;
@@ -535,6 +540,26 @@ export default function App() {
     setPostalResults([]);
     setPostalHasMore(false);
     setPostalOpen(false);
+  }
+
+  function handlePostalInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (!postalOpen || postalResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setPostalHighlightedIndex((i) => (i + 1) % postalResults.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setPostalHighlightedIndex((i) => (i <= 0 ? postalResults.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      const highlighted = postalHighlightedIndex >= 0 ? postalResults[postalHighlightedIndex] : undefined;
+      if (highlighted) {
+        e.preventDefault();
+        selectPostalMatch(highlighted);
+      }
+    } else if (e.key === "Escape") {
+      setPostalOpen(false);
+      setPostalHighlightedIndex(-1);
+    }
   }
 
   function goToStep(next: number) {
@@ -903,6 +928,11 @@ export default function App() {
                         onChange={(e) => handlePostalQueryChange(e.target.value)}
                         onFocus={() => postalResults.length > 0 && setPostalOpen(true)}
                         onBlur={() => setTimeout(() => setPostalOpen(false), 150)}
+                        onKeyDown={handlePostalInputKeyDown}
+                        role="combobox"
+                        aria-expanded={postalOpen}
+                        aria-controls="codigoPostal-listbox"
+                        aria-activedescendant={postalHighlightedIndex >= 0 ? `codigoPostal-option-${postalHighlightedIndex}` : undefined}
                       />
                       {form.codigoPostal ? (
                         <span className="autocomplete-check" aria-hidden="true">
@@ -910,7 +940,7 @@ export default function App() {
                         </span>
                       ) : null}
                       {postalOpen ? (
-                        <ul className="autocomplete-list">
+                        <ul className="autocomplete-list" id="codigoPostal-listbox" role="listbox">
                           {postalLoading ? (
                             <li className="autocomplete-loading"><Spinner />Buscando...</li>
                           ) : postalSearchError ? (
@@ -919,8 +949,14 @@ export default function App() {
                             <li className="autocomplete-loading">Sin resultados para "{postalQuery}", intenta con otro nombre</li>
                           ) : (
                             <>
-                              {postalResults.map((item) => (
-                                <li key={`${item.distrito}-${item.codigoPostal}`}>
+                              {postalResults.map((item, index) => (
+                                <li
+                                  key={`${item.distrito}-${item.codigoPostal}`}
+                                  id={`codigoPostal-option-${index}`}
+                                  role="option"
+                                  aria-selected={index === postalHighlightedIndex}
+                                  className={index === postalHighlightedIndex ? "is-highlighted" : undefined}
+                                >
                                   <button
                                     type="button"
                                     onMouseDown={(e) => e.preventDefault()}

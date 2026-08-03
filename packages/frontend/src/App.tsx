@@ -162,16 +162,21 @@ const STEPS: StepDef[] = [
 
 function StepHeader({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
   return (
-    <ol className="steps">
-      {STEPS.map((s) => (
-        <li key={s.n} className={`steps__item ${s.n === current ? "is-current" : ""} ${s.n < current ? "is-done" : ""}`}>
-          <button type="button" className="steps__button" onClick={() => onSelect(s.n)}>
-            <span className="steps__circle">{s.n}</span>
-            <span className="steps__label">{s.label}</span>
-          </button>
-        </li>
-      ))}
-    </ol>
+    <>
+      <ol className="steps">
+        {STEPS.map((s) => (
+          <li key={s.n} className={`steps__item ${s.n === current ? "is-current" : ""} ${s.n < current ? "is-done" : ""}`}>
+            <button type="button" className="steps__button" onClick={() => onSelect(s.n)}>
+              <span className="steps__circle">{s.n}</span>
+              <span className="steps__label">{s.label}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className="steps__progress">
+        <div className="steps__progress-fill" style={{ width: `${(current / STEPS.length) * 100}%` }} />
+      </div>
+    </>
   );
 }
 
@@ -530,6 +535,7 @@ export default function App() {
                 </>
               )}
               <p className="muted">Nos pondremos en contacto contigo para confirmar la fecha de instalación.</p>
+              <p className="muted">Un asesor te contactará por WhatsApp o email en las próximas horas para confirmar la fecha y el técnico asignado.</p>
             </>
           ) : (
             <>

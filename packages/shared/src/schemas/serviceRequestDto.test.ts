@@ -16,7 +16,7 @@ const productos = [{ numeroSerie: "TDM5524083854", productId: "10054511" }];
 const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
 const baseCommon = {
-  telefono: "+51942568111",
+  telefono: "942568111",
   email: "cliente@example.com",
   direccion,
   productos,
@@ -66,6 +66,30 @@ describe("ServiceRequestSubmissionSchema", () => {
       tipoDocumento: "RUC",
       numeroDocumento: "20525512340",
       razonSocial: "SERVICIOS MEDICOS M'VAPE S.A.C.",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta un telefono de 9 digitos sin prefijo", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      telefono: "942568111",
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza un telefono con prefijo +51 (formato viejo, ya no se acepta)", () => {
+    const result = ServiceRequestSubmissionSchema.safeParse({
+      ...baseCommon,
+      telefono: "+51942568111",
+      tipoDocumento: "DNI",
+      numeroDocumento: "15619884",
+      nombres: "ALVARO MIGUEL",
+      apellidos: "SEBASTIANI RUBIO",
     });
     expect(result.success).toBe(false);
   });

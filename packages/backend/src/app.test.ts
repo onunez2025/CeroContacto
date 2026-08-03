@@ -53,7 +53,7 @@ const validBody = {
   numeroDocumento: "15619884",
   nombres: "ALVARO MIGUEL",
   apellidos: "SEBASTIANI RUBIO",
-  telefono: "+51942568111",
+  telefono: "942568111",
   email: "cliente@example.com",
   direccion,
   productos: [{ numeroSerie: "TDM5524083854", productId: "10054511" }],

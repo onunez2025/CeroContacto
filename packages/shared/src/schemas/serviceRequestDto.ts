@@ -40,7 +40,7 @@ export const AddressSchema = z.object({
 });
 export type Address = z.infer<typeof AddressSchema>;
 
-const PHONE_REGEX = /^\+?\d{7,15}$/;
+const PHONE_REGEX = /^\d{9}$/;
 
 /**
  * `numeroSerie` mapea a zaIDdeSerieFSM_KUT en C4C (MaxLength 120,

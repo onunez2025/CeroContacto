@@ -756,7 +756,7 @@ export default function App() {
               />
               <FieldError message={fieldErrors.numeroDocumento} />
               {customerLookupStatus === "loading" && <p className="hint hint-validating"><Spinner />Estamos validando el número de documento.</p>}
-              {customerLookupStatus === "found" && <p className="hint">Datos encontrados, puedes corregirlos si cambiaron.</p>}
+              {customerLookupStatus === "found" && <p className="hint hint-validating">Datos encontrados, puedes corregirlos si cambiaron.</p>}
             </div>
 
             {form.tipoDocumento === "RUC" ? (

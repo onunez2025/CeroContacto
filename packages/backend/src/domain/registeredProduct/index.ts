@@ -1,7 +1,12 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
-import { eq } from "@cerocontacto/c4c-client";
+import { and, eq } from "@cerocontacto/c4c-client";
 import { PERU_DISTRITOS } from "@cerocontacto/shared";
-import type { RegisteredProductInput, RegisteredProductRecord, RegisteredProductResult } from "./types.js";
+import type {
+  RegisteredProductInput,
+  RegisteredProductPartyRecord,
+  RegisteredProductRecord,
+  RegisteredProductResult,
+} from "./types.js";
 
 export * from "./types.js";
 
@@ -10,6 +15,9 @@ const NS = "v1/c4codataapi";
 /** CategoryCode "2"=Documento, TypeCode "10011"=Product Image - confirmados via value-help de C4C. */
 const PHOTO_CATEGORY_CODE = "2";
 const PHOTO_TYPE_CODE = "10011";
+
+/** RoleCode del propietario del producto registrado. */
+const OWNER_ROLE_CODE = "60";
 
 function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -39,33 +47,67 @@ async function uploadFotos(registeredProductId: string, fotos: string[], client:
 }
 
 /**
- * Modulo Producto Registrado (comun a los 4 casos de cliente):
- * 2.1 Consulta por zaIDdeSerieFSM_KUT -> si hay resultado, ya existe.
- * 2.2 Si no hay resultado: crear el producto registrado y asociarlo al cliente.
+ * Busca un producto registrado que represente EL MISMO equipo fisico que el
+ * que se esta registrando: mismo dueño, mismo modelo y misma direccion de
+ * instalacion.
  *
- * Riesgo conocido (confirmado con datos reales de C4C QA): el campo
- * zaIDdeSerieFSM_KUT esta poblado de forma inconsistente en la practica -
- * a veces vacio, a veces con texto que no es un serial real. Este "GET
- * antes de crear" puede no encontrar coincidencias reales (crea
- * duplicados) o no aplica si el dato de origen es basura. Ver seccion B
- * del cuestionario tecnico.
+ * La serie NO se usa como criterio de busqueda. Hacerlo era un bug real
+ * confirmado en produccion (2026-08-10): "zaIDdeSerieFSM_KUT eq '123'"
+ * matchea mas de 10 equipos de modelos y dueños distintos, y el ticket
+ * terminaba apuntando al equipo de otra persona. La serie solo desempata
+ * entre candidatos que ya pasaron el filtro de dueño+modelo+direccion.
  *
- * numeroSerie es opcional en el formulario: sin el, no hay forma segura de
- * buscar un producto ya registrado (un filtro por serie vacia matchearia
- * cualquier otro producto con el mismo campo en blanco), asi que se
- * salta la busqueda y siempre se crea un RegisteredProduct nuevo.
+ * Como efecto secundario buscado, esto tambien corta los duplicados por
+ * reintento: si el ticket fallo pero el producto quedo creado, el siguiente
+ * intento lo encuentra y lo reutiliza en vez de crear otro.
+ */
+async function findReusableProduct(
+  input: RegisteredProductInput,
+  client: IC4CODataClient,
+): Promise<RegisteredProductRecord | undefined> {
+  const filter = and(
+    eq("ProductID", input.productId),
+    eq("Street", input.direccion.direccion),
+    eq("PostalCode", input.direccion.codigoPostal),
+    eq("House", input.direccion.numero),
+  );
+  const candidates = await client.getCollection<RegisteredProductRecord>(
+    `${NS}/RegisteredProductCollection?$filter=${encodeURIComponent(filter)}&$select=ObjectID,ID,zaIDdeSerieFSM_KUT`,
+  );
+  if (candidates.length === 0) return undefined;
+
+  const partyFilter = and(eq("PartyID", input.buyerPartyId), eq("RoleCode", OWNER_ROLE_CODE));
+  const ownerRows = await client.getCollection<RegisteredProductPartyRecord>(
+    `${NS}/RegisteredProductPartyInformationCollection?$filter=${encodeURIComponent(partyFilter)}&$select=ParentObjectID`,
+  );
+  const ownedIds = new Set(ownerRows.map((row) => row.ParentObjectID));
+
+  const serie = input.numeroSerie?.trim() ?? "";
+  // Un candidato es incompatible solo si AMBAS series estan presentes y
+  // difieren: eso prueba que son unidades fisicas distintas. Cualquier otra
+  // combinacion (alguna vacia, o iguales) se considera el mismo equipo.
+  const compatibles = candidates.filter((candidate) => {
+    if (!ownedIds.has(candidate.ObjectID)) return false;
+    const candidateSerie = candidate.zaIDdeSerieFSM_KUT?.trim() ?? "";
+    return serie === "" || candidateSerie === "" || serie === candidateSerie;
+  });
+
+  const exacto = compatibles.find(
+    (candidate) => serie !== "" && (candidate.zaIDdeSerieFSM_KUT?.trim() ?? "") === serie,
+  );
+  return exacto ?? compatibles[0];
+}
+
+/**
+ * Modulo Producto Registrado (comun a los 4 casos de cliente): reutiliza el
+ * producto si ya existe uno del mismo dueño, modelo y direccion (ver
+ * findReusableProduct); si no, lo crea y lo asocia al cliente.
  */
 export async function resolveRegisteredProduct(
   input: RegisteredProductInput,
   client: IC4CODataClient,
 ): Promise<RegisteredProductResult> {
-  const existing = input.numeroSerie
-    ? (
-        await client.getCollection<RegisteredProductRecord>(
-          `${NS}/RegisteredProductCollection?$filter=${encodeURIComponent(eq("zaIDdeSerieFSM_KUT", input.numeroSerie))}`,
-        )
-      )[0]
-    : undefined;
+  const existing = await findReusableProduct(input, client);
 
   if (existing) {
     if (input.fotos?.length) {
@@ -96,7 +138,7 @@ export async function resolveRegisteredProduct(
     PostalCode: input.direccion.codigoPostal,
     TimeZoneCode: "UTC-5",
     Floor: input.direccion.piso ?? "",
-    RegisteredProductPartyInformation: [{ RoleCode: "60", PartyID: input.buyerPartyId }],
+    RegisteredProductPartyInformation: [{ RoleCode: OWNER_ROLE_CODE, PartyID: input.buyerPartyId }],
   });
 
   if (input.fotos?.length) {

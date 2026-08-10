@@ -30,16 +30,109 @@ function mockClient(overrides: Partial<IC4CODataClient> = {}): IC4CODataClient {
   };
 }
 
+/**
+ * Cliente con enrutado por path: la busqueda de candidatos y la de propiedad
+ * son dos consultas distintas, asi que un unico mockResolvedValue ya no basta.
+ */
+function clientFromRouter(
+  router: (path: string) => unknown[],
+  postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" }),
+): IC4CODataClient {
+  return {
+    getCollection: vi.fn(async (path: string) => router(path)) as unknown as IC4CODataClient["getCollection"],
+    postEntity,
+    patch: vi.fn(),
+  };
+}
+
+/** Router de un candidato propio: misma direccion+modelo y del mismo cliente. */
+function routerCandidatoPropio(candidato: Record<string, unknown>) {
+  return (path: string): unknown[] =>
+    path.includes("PartyInformation") ? [{ ParentObjectID: candidato.ObjectID }] : [candidato];
+}
+
 describe("resolveRegisteredProduct", () => {
-  it("devuelve el producto existente sin crear nada si el serial ya matchea", async () => {
-    const client = mockClient({
-      getCollection: vi.fn().mockResolvedValue([{ ObjectID: "OBJ1", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }]),
-    });
+  it("busca por modelo y direccion, nunca por la serie sola", async () => {
+    const getCollection = vi.fn().mockResolvedValue([]);
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = mockClient({ getCollection, postEntity });
+
+    await resolveRegisteredProduct(input, client);
+
+    const decoded = decodeURIComponent((getCollection.mock.calls[0] as [string])[0]);
+    expect(decoded).toContain("ProductID eq '10054511'");
+    expect(decoded).toContain("Street eq 'AV. EL SOL'");
+    expect(decoded).toContain("PostalCode eq '07021'");
+    expect(decoded).toContain("House eq '555'");
+    expect(decoded).not.toContain("zaIDdeSerieFSM_KUT eq");
+  });
+
+  it("crea uno nuevo sin consultar la propiedad cuando no hay candidatos en esa direccion", async () => {
+    const getCollection = vi.fn().mockResolvedValue([]);
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = mockClient({ getCollection, postEntity });
 
     const result = await resolveRegisteredProduct(input, client);
 
-    expect(result).toEqual({ installationPointId: "420434", objectId: "OBJ1", wasCreated: false });
-    expect(client.postEntity).not.toHaveBeenCalled();
+    expect(result.wasCreated).toBe(true);
+    expect(getCollection).toHaveBeenCalledTimes(1);
+  });
+
+  it("NO reutiliza un producto que pertenece a otro cliente", async () => {
+    // Reproduce el bug real: la serie "123" existe en C4C pero es de otro dueño.
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = clientFromRouter(
+      (path) =>
+        path.includes("PartyInformation")
+          ? [{ ParentObjectID: "OBJ-DE-OTRO-CLIENTE" }]
+          : [{ ObjectID: "OBJ-AJENO", ID: "506202", zaIDdeSerieFSM_KUT: "123" }],
+      postEntity,
+    );
+
+    const result = await resolveRegisteredProduct({ ...input, numeroSerie: "123" }, client);
+
+    expect(result).toEqual({ installationPointId: "420999", objectId: "NEWOBJ", wasCreated: true });
+  });
+
+  it("reutiliza el producto propio cuando ambas series estan vacias", async () => {
+    // Regresion del bug de produccion: 3 productos identicos creados por
+    // reintentos, todos con serie vacia (cliente 1125569, 2026-08-03).
+    const postEntity = vi.fn();
+    const client = clientFromRouter(
+      routerCandidatoPropio({ ObjectID: "PROPIO", ID: "689472", zaIDdeSerieFSM_KUT: "" }),
+      postEntity,
+    );
+
+    const result = await resolveRegisteredProduct({ ...input, numeroSerie: undefined }, client);
+
+    expect(result).toEqual({ installationPointId: "689472", objectId: "PROPIO", wasCreated: false });
+    expect(postEntity).not.toHaveBeenCalled();
+  });
+
+  it("crea uno nuevo si el candidato propio tiene una serie distinta a la ingresada", async () => {
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = clientFromRouter(
+      routerCandidatoPropio({ ObjectID: "PROPIO", ID: "111", zaIDdeSerieFSM_KUT: "SERIE-VIEJA" }),
+      postEntity,
+    );
+
+    const result = await resolveRegisteredProduct({ ...input, numeroSerie: "SERIE-NUEVA" }, client);
+
+    expect(result.wasCreated).toBe(true);
+  });
+
+  it("prefiere el candidato propio cuya serie coincide exactamente", async () => {
+    const candidatos = [
+      { ObjectID: "P1", ID: "111", zaIDdeSerieFSM_KUT: "" },
+      { ObjectID: "P2", ID: "222", zaIDdeSerieFSM_KUT: "TDM5524083854" },
+    ];
+    const client = clientFromRouter((path) =>
+      path.includes("PartyInformation") ? [{ ParentObjectID: "P1" }, { ParentObjectID: "P2" }] : candidatos,
+    );
+
+    const result = await resolveRegisteredProduct(input, client);
+
+    expect(result.installationPointId).toBe("222");
   });
 
   it("crea el producto registrado asociado al buyerPartyId cuando no hay match", async () => {
@@ -107,12 +200,12 @@ describe("resolveRegisteredProduct", () => {
     expect(bodyFoto2.Binary).toBe("BBBB");
   });
 
-  it("sube fotos tambien cuando el producto ya existia", async () => {
+  it("sube fotos tambien cuando reutiliza un producto existente", async () => {
     const postEntity = vi.fn().mockResolvedValue({});
-    const client = mockClient({
-      getCollection: vi.fn().mockResolvedValue([{ ObjectID: "OBJ1", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }]),
+    const client = clientFromRouter(
+      routerCandidatoPropio({ ObjectID: "PROPIO", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }),
       postEntity,
-    });
+    );
 
     await resolveRegisteredProduct({ ...input, fotos: [fakeFoto1] }, client);
 

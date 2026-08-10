@@ -47,6 +47,9 @@ function happyPathRouter(path: string): Promise<unknown[]> {
   if (path.includes("IndividualCustomerCollection")) {
     return Promise.resolve([{ ObjectID: "CLIOBJ", CustomerID: "1035063", StateCode: "15", StreetPostalCode: "07021" }]);
   }
+  if (path.includes("RegisteredProductPartyInformationCollection")) {
+    return Promise.resolve([{ ParentObjectID: "PRODOBJ" }]);
+  }
   if (path.includes("RegisteredProductCollection")) {
     return Promise.resolve([{ ObjectID: "PRODOBJ", ID: "420434", zaIDdeSerieFSM_KUT: "TDM5524083854" }]);
   }

@@ -34,3 +34,12 @@ export interface RegisteredProductRecord {
   ProductID?: string;
   zaIDdeSerieFSM_KUT?: string;
 }
+
+/**
+ * Fila de RegisteredProductPartyInformationCollection. Se consulta para
+ * confirmar que un producto candidato pertenece de verdad al cliente actual
+ * antes de reutilizarlo.
+ */
+export interface RegisteredProductPartyRecord {
+  ParentObjectID: string;
+}

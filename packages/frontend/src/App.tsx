@@ -701,8 +701,11 @@ export default function App() {
               </ul>
               <p>No pudimos agendar estos equipos:</p>
               <ul className="ticket-list">
-                {result.productosFallidos.map((id) => (
-                  <li key={id}>{form.productos.find((p) => p.productId === id)?.productNombre ?? id}</li>
+                {result.productosFallidos.map((id, index) => (
+                  // Dos equipos del mismo combo pueden compartir productId (ej.
+                  // 2 campanas identicas) - se agrega el indice para evitar
+                  // keys duplicadas en React cuando ambos fallan.
+                  <li key={`${id}-${index}`}>{form.productos.find((p) => p.productId === id)?.productNombre ?? id}</li>
                 ))}
               </ul>
               <p className="muted">{result.errorMessage}</p>

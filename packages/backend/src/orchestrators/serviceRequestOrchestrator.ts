@@ -79,7 +79,12 @@ export async function runServiceRequestOrchestration(
 
     // Un producto registrado por item de la solicitud (combo cocina+horno+
     // campana = 3 productos registrados), todos asociados al mismo cliente.
+    // Se acumulan los ObjectID ya resueltos en este envio y se excluyen de
+    // la busqueda del siguiente item: dos filas del mismo modelo en un
+    // combo son dos unidades fisicas distintas, aunque compartan dueño,
+    // modelo, direccion y (si viene vacia) serie.
     const products = [];
+    const objectIdsUsados: string[] = [];
     for (const producto of submission.productos) {
       const product = await resolveRegisteredProduct(
         {
@@ -88,9 +93,11 @@ export async function runServiceRequestOrchestration(
           buyerPartyId: customer.buyerPartyId,
           direccion: submission.direccion,
           fotos: producto.fotos,
+          excluirObjectIds: objectIdsUsados,
         },
         client,
       );
+      objectIdsUsados.push(product.objectId);
       products.push({ productId: producto.productId, ...product });
     }
 

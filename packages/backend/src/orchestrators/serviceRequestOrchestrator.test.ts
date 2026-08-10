@@ -176,6 +176,61 @@ describe("runServiceRequestOrchestration", () => {
     expect(ticketCalls).toHaveLength(3);
   });
 
+  it("combo con dos items del mismo modelo, misma direccion y sin serie crea dos productos registrados distintos", async () => {
+    // Reproduce el hallazgo: dos filas identicas (mismo productId, sin
+    // numeroSerie) del mismo cliente/direccion NO deben colapsar en un solo
+    // producto registrado. El router simula C4C real: cada RegisteredProduct
+    // creado por un item queda disponible como candidato para el siguiente.
+    const comboSubmission: ServiceRequestSubmission = {
+      ...submission,
+      productos: [{ productId: "10054511" }, { productId: "10054511" }],
+    };
+
+    const creados: Array<{ ObjectID: string; ID: string; ProductID: string }> = [];
+    let siguienteId = 1;
+
+    const postEntity = vi.fn(async (path: string, body: unknown) => {
+      const b = body as Record<string, unknown>;
+      if (path.includes("RegisteredProductCollection")) {
+        const registro = { ObjectID: `OBJ-${siguienteId}`, ID: `IP-${siguienteId}`, ProductID: b.ProductID as string };
+        siguienteId++;
+        creados.push(registro);
+        return registro;
+      }
+      if (path.includes("ServiceRequestCollection")) {
+        return { ObjectID: `TICKETOBJ-${b.InstallationPointID}`, ID: `TICKET-${b.InstallationPointID}` };
+      }
+      throw new Error(`POST inesperado en el test: ${path}`);
+    });
+
+    const client = clientFromRouter((path) => {
+      if (path.includes("RegisteredProductPartyInformationCollection")) {
+        // Todos los productos creados en este envio pertenecen al cliente.
+        return Promise.resolve(creados.map((p) => ({ ParentObjectID: p.ObjectID })));
+      }
+      if (path.includes("RegisteredProductCollection")) {
+        // La consulta real filtra por ProductID en la URL; el mock replica
+        // eso devolviendo solo los creados con el mismo modelo.
+        return Promise.resolve(creados.filter((p) => path.includes(encodeURIComponent(`ProductID eq '${p.ProductID}'`))));
+      }
+      return happyPathRouter(path);
+    }, postEntity);
+
+    const result = await runServiceRequestOrchestration(comboSubmission, client);
+
+    expect(result.status).toBe("Completed");
+
+    const registeredProductCalls = postEntity.mock.calls.filter(([path]) => (path as string).includes("RegisteredProductCollection"));
+    expect(registeredProductCalls).toHaveLength(2);
+
+    const ticketCalls = postEntity.mock.calls.filter(
+      ([path]) => (path as string).includes("ServiceRequestCollection") && !(path as string).includes("TextCollection"),
+    );
+    const installationPointIds = ticketCalls.map(([, body]) => (body as Record<string, unknown>).InstallationPointID);
+    expect(installationPointIds).toHaveLength(2);
+    expect(new Set(installationPointIds).size).toBe(2);
+  });
+
   it("traduce un C4CError de regla de negocio (400 ABSL) a un Failed legible", async () => {
     const client = clientFromRouter(
       () => Promise.reject(new C4CError("Cupos agotados para los valores seleccionados", 400, { businessMessage: "Cupos agotados para los valores seleccionados" })),
@@ -236,6 +291,15 @@ describe("runServiceRequestOrchestration", () => {
   });
 
   it("devuelve Failed cuando fallan todos los productos del combo", async () => {
+    const comboSubmission: ServiceRequestSubmission = {
+      ...submission,
+      productos: [
+        { numeroSerie: "SERIE-A", productId: "PROD-A" },
+        { numeroSerie: "SERIE-B", productId: "PROD-B" },
+        { numeroSerie: "SERIE-C", productId: "PROD-C" },
+      ],
+    };
+
     const postEntity = vi.fn(async (path: string) => {
       if (path.includes("RegisteredProductCollection")) return { ObjectID: "OBJ", ID: "IP" };
       throw new C4CError("Cupos agotados", 400, { businessMessage: "Cupos agotados" });
@@ -245,9 +309,11 @@ describe("runServiceRequestOrchestration", () => {
       return happyPathRouter(path);
     }, postEntity);
 
-    const result = await runServiceRequestOrchestration(submission, client);
+    const result = await runServiceRequestOrchestration(comboSubmission, client);
 
     expect(result.status).toBe("Failed");
+    expect((result as { errorMessage: string }).errorMessage).toContain("Cupos agotados");
+    expect((result as { ticketIds?: string[] }).ticketIds).toBeUndefined();
   });
 
   it("propaga un error de conectividad a mitad del combo en vez de devolver Partial", async () => {

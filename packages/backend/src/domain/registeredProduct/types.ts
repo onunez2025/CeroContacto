@@ -18,6 +18,15 @@ export interface RegisteredProductInput {
   warrantyId?: string;
   /** Fotos del producto instalado (data URLs base64), hasta 6. Ver types.ts de shared. */
   fotos?: string[];
+  /**
+   * ObjectID de productos registrados ya consumidos por otro item de ESTE
+   * mismo envio. Dos filas del mismo modelo en un combo son dos unidades
+   * fisicas distintas (el cliente las agrego por separado), aunque la
+   * consulta por dueño+modelo+direccion las encuentre como candidatas: sin
+   * esta exclusion, el segundo item reutilizaria el producto que el primero
+   * acaba de crear.
+   */
+  excluirObjectIds?: string[];
 }
 
 export interface RegisteredProductResult {

@@ -81,12 +81,18 @@ async function findReusableProduct(
     `${NS}/RegisteredProductPartyInformationCollection?$filter=${encodeURIComponent(partyFilter)}&$select=ParentObjectID`,
   );
   const ownedIds = new Set(ownerRows.map((row) => row.ParentObjectID));
+  const excluidos = new Set(input.excluirObjectIds ?? []);
 
   const serie = input.numeroSerie?.trim() ?? "";
   // Un candidato es incompatible solo si AMBAS series estan presentes y
   // difieren: eso prueba que son unidades fisicas distintas. Cualquier otra
   // combinacion (alguna vacia, o iguales) se considera el mismo equipo.
   const compatibles = candidates.filter((candidate) => {
+    // Ya consumido por otro item de este mismo envio: aunque coincida en
+    // dueño+modelo+direccion+serie, es una unidad fisica distinta (ver
+    // comentario de excluirObjectIds en types.ts). Se descarta antes de
+    // cualquier otra comprobacion de compatibilidad.
+    if (excluidos.has(candidate.ObjectID)) return false;
     if (!ownedIds.has(candidate.ObjectID)) return false;
     const candidateSerie = candidate.zaIDdeSerieFSM_KUT?.trim() ?? "";
     return serie === "" || candidateSerie === "" || serie === candidateSerie;

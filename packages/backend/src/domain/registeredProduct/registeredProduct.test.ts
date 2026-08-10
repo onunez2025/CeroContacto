@@ -121,6 +121,25 @@ describe("resolveRegisteredProduct", () => {
     expect(result.wasCreated).toBe(true);
   });
 
+  it("crea uno nuevo si el candidato propio y compatible esta en excluirObjectIds", async () => {
+    // Dos filas del mismo modelo en un combo son dos unidades fisicas
+    // distintas: el candidato que el item anterior del mismo envio acaba
+    // de crear/reutilizar no debe reutilizarse de nuevo para este item.
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = clientFromRouter(
+      routerCandidatoPropio({ ObjectID: "PROPIO", ID: "689472", zaIDdeSerieFSM_KUT: "" }),
+      postEntity,
+    );
+
+    const result = await resolveRegisteredProduct(
+      { ...input, numeroSerie: undefined, excluirObjectIds: ["PROPIO"] },
+      client,
+    );
+
+    expect(result).toEqual({ installationPointId: "420999", objectId: "NEWOBJ", wasCreated: true });
+    expect(postEntity).toHaveBeenCalledTimes(1);
+  });
+
   it("prefiere el candidato propio cuya serie coincide exactamente", async () => {
     const candidatos = [
       { ObjectID: "P1", ID: "111", zaIDdeSerieFSM_KUT: "" },

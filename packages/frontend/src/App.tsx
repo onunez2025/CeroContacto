@@ -665,7 +665,7 @@ export default function App() {
         <HeroPanel />
         <div className="card">
         <div className="card__inner result-card">
-          {result.status === "Completed" ? (
+          {result.status === "Completed" && (
             <>
               <h1>¡Listo! Tu solicitud fue registrada</h1>
               {result.ticketIds.length === 1 ? (
@@ -687,7 +687,31 @@ export default function App() {
               <p className="muted">Nos pondremos en contacto contigo para confirmar la fecha de instalación.</p>
               <p className="muted">Un asesor te contactará por WhatsApp o email en las próximas horas para confirmar la fecha y el técnico asignado.</p>
             </>
-          ) : (
+          )}
+          {result.status === "Partial" && (
+            <>
+              <h1>Agendamos parte de tu solicitud</h1>
+              <p>Estos equipos quedaron agendados:</p>
+              <ul className="ticket-list">
+                {result.ticketIds.map((id) => (
+                  <li key={id}>
+                    <strong>{id}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p>No pudimos agendar estos equipos:</p>
+              <ul className="ticket-list">
+                {result.productosFallidos.map((id) => (
+                  <li key={id}>{form.productos.find((p) => p.productId === id)?.productNombre ?? id}</li>
+                ))}
+              </ul>
+              <p className="muted">{result.errorMessage}</p>
+              <p className="muted">
+                Comunícate con nosotros por WhatsApp para agendar los equipos que faltaron.
+              </p>
+            </>
+          )}
+          {result.status === "Failed" && (
             <>
               <h1>No pudimos completar tu solicitud</h1>
               <p>{result.errorMessage}</p>
@@ -697,13 +721,12 @@ export default function App() {
             type="button"
             className="btn-secondary"
             onClick={() => {
-              // Si la solicitud ya se envio con exito, no dejar los datos ya
-              // enviados en el formulario (ni en localStorage, ya limpiado
-              // por clearStoredProgress) - editar cualquier campo desde aca
-              // los volveria a guardar. Si fallo el envio, el cliente
-              // vuelve a ver sus datos tal como los dejo, para poder
-              // reintentar sin volver a escribir todo.
-              if (result.status === "Completed") {
+              // Si se creo algun ticket (Completed o Partial), no dejar los
+              // datos ya enviados en el formulario: reenviarlos duplicaria
+              // los tickets que si existen. Si fallo todo, el cliente vuelve
+              // a ver sus datos tal como los dejo, para poder reintentar sin
+              // volver a escribir todo.
+              if (result.status !== "Failed") {
                 setForm(initialState);
               }
               setPhase("editing");

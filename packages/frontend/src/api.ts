@@ -11,7 +11,15 @@ export interface SubmitFailure {
   errorMessage: string;
 }
 
-export type SubmitResult = SubmitSuccess | SubmitFailure;
+export interface SubmitPartial {
+  status: "Partial";
+  ticketIds: string[];
+  /** productId de cada equipo que no logro ticket. */
+  productosFallidos: string[];
+  errorMessage: string;
+}
+
+export type SubmitResult = SubmitSuccess | SubmitPartial | SubmitFailure;
 
 export class ApiError extends Error {
   constructor(
@@ -36,7 +44,14 @@ export async function submitServiceRequest(payload: ServiceRequestSubmission): P
   });
 
   const body = (await res.json().catch(() => undefined)) as
-    | { status?: string; ticketIds?: string[]; errorMessage?: string; error?: string; details?: unknown }
+    | {
+        status?: string;
+        ticketIds?: string[];
+        productosFallidos?: string[];
+        errorMessage?: string;
+        error?: string;
+        details?: unknown;
+      }
     | undefined;
 
   if (res.status === 400) {
@@ -48,6 +63,14 @@ export async function submitServiceRequest(payload: ServiceRequestSubmission): P
 
   if (body?.status === "Completed" && body.ticketIds?.length) {
     return { status: "Completed", ticketIds: body.ticketIds };
+  }
+  if (body?.status === "Partial" && body.ticketIds?.length) {
+    return {
+      status: "Partial",
+      ticketIds: body.ticketIds,
+      productosFallidos: body.productosFallidos ?? [],
+      errorMessage: body.errorMessage ?? "Algunos equipos no pudieron agendarse.",
+    };
   }
   return { status: "Failed", errorMessage: body?.errorMessage ?? "No pudimos procesar tu solicitud." };
 }

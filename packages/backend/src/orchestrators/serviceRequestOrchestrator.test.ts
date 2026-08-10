@@ -192,4 +192,87 @@ describe("runServiceRequestOrchestration", () => {
 
     await expect(runServiceRequestOrchestration(submission, client)).rejects.toThrow("Timeout");
   });
+
+  it("devuelve Partial cuando un producto del combo falla por regla de negocio", async () => {
+    const comboSubmission: ServiceRequestSubmission = {
+      ...submission,
+      productos: [
+        { numeroSerie: "SERIE-A", productId: "PROD-A" },
+        { numeroSerie: "SERIE-B", productId: "PROD-B" },
+        { numeroSerie: "SERIE-C", productId: "PROD-C" },
+      ],
+    };
+
+    const postEntity = vi.fn(async (path: string, body: unknown) => {
+      const b = body as Record<string, unknown>;
+      if (path.includes("RegisteredProductCollection")) {
+        const serie = b.zaIDdeSerieFSM_KUT as string;
+        return { ObjectID: `OBJ-${serie}`, ID: `IP-${serie}` };
+      }
+      if (path.includes("ServiceRequestCollection")) {
+        if (b.ProductID === "PROD-B") {
+          throw new C4CError("Cupos agotados para los valores seleccionados", 400, {
+            businessMessage: "Cupos agotados para los valores seleccionados",
+          });
+        }
+        return { ObjectID: `TICKETOBJ-${b.ProductID}`, ID: `TICKET-${b.ProductID}` };
+      }
+      throw new Error(`POST inesperado en el test: ${path}`);
+    });
+
+    const client = clientFromRouter((path) => {
+      if (path.includes("RegisteredProductCollection")) return Promise.resolve([]);
+      return happyPathRouter(path);
+    }, postEntity);
+
+    const result = await runServiceRequestOrchestration(comboSubmission, client);
+
+    expect(result).toEqual({
+      status: "Partial",
+      ticketIds: ["TICKET-PROD-A", "TICKET-PROD-C"],
+      productosFallidos: ["PROD-B"],
+      errorMessage: "No pudimos completar tu solicitud: Cupos agotados para los valores seleccionados",
+    });
+  });
+
+  it("devuelve Failed cuando fallan todos los productos del combo", async () => {
+    const postEntity = vi.fn(async (path: string) => {
+      if (path.includes("RegisteredProductCollection")) return { ObjectID: "OBJ", ID: "IP" };
+      throw new C4CError("Cupos agotados", 400, { businessMessage: "Cupos agotados" });
+    });
+    const client = clientFromRouter((path) => {
+      if (path.includes("RegisteredProductCollection")) return Promise.resolve([]);
+      return happyPathRouter(path);
+    }, postEntity);
+
+    const result = await runServiceRequestOrchestration(submission, client);
+
+    expect(result.status).toBe("Failed");
+  });
+
+  it("propaga un error de conectividad a mitad del combo en vez de devolver Partial", async () => {
+    const comboSubmission: ServiceRequestSubmission = {
+      ...submission,
+      productos: [
+        { numeroSerie: "SERIE-A", productId: "PROD-A" },
+        { numeroSerie: "SERIE-B", productId: "PROD-B" },
+      ],
+    };
+
+    const postEntity = vi.fn(async (path: string, body: unknown) => {
+      const b = body as Record<string, unknown>;
+      if (path.includes("RegisteredProductCollection")) {
+        return { ObjectID: "OBJ", ID: `IP-${b.zaIDdeSerieFSM_KUT as string}` };
+      }
+      if (b.ProductID === "PROD-B") throw new C4CError("Timeout", 504, { isTransient: true });
+      return { ObjectID: "TICKETOBJ", ID: "TICKET-A" };
+    });
+
+    const client = clientFromRouter((path) => {
+      if (path.includes("RegisteredProductCollection")) return Promise.resolve([]);
+      return happyPathRouter(path);
+    }, postEntity);
+
+    await expect(runServiceRequestOrchestration(comboSubmission, client)).rejects.toThrow("Timeout");
+  });
 });

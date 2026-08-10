@@ -98,23 +98,46 @@ export async function runServiceRequestOrchestration(
     // contratista/region asignados automaticamente (ver nota arriba).
     const comentarioParaC4C = buildComentarioParaC4C(submission);
     const ticketIds: string[] = [];
+    const productosFallidos: string[] = [];
+    let primerErrorDeNegocio: string | undefined;
+
     for (const product of products) {
-      const ticket = await createTicket(
-        {
-          buyerPartyId: customer.buyerPartyId,
-          productId: product.productId,
-          installationPointId: product.installationPointId,
-          fechaVisita: submission.fechaVisita,
-          provincia: submission.direccion.provincia,
-          distrito: submission.direccion.distrito,
-          comentario: comentarioParaC4C,
-        },
-        client,
-      );
-      ticketIds.push(ticket.ticketId);
+      try {
+        const ticket = await createTicket(
+          {
+            buyerPartyId: customer.buyerPartyId,
+            productId: product.productId,
+            installationPointId: product.installationPointId,
+            fechaVisita: submission.fechaVisita,
+            provincia: submission.direccion.provincia,
+            distrito: submission.direccion.distrito,
+            comentario: comentarioParaC4C,
+          },
+          client,
+        );
+        ticketIds.push(ticket.ticketId);
+      } catch (err) {
+        // Solo las reglas de negocio se capturan por producto. Un fallo de
+        // conectividad (5xx/timeout) se propaga y aborta todo, porque ahi
+        // reintentar la solicitud completa si tiene sentido.
+        if (!(err instanceof C4CError && err.isBusinessRuleFailure)) throw err;
+        productosFallidos.push(product.productId);
+        primerErrorDeNegocio ??= err.businessMessage ?? "error de validacion en SAP.";
+      }
     }
 
-    return { status: "Completed", ticketIds };
+    if (productosFallidos.length === 0) {
+      return { status: "Completed", ticketIds };
+    }
+
+    const errorMessage = `No pudimos completar tu solicitud: ${primerErrorDeNegocio}`;
+    // Sin ningun ticket creado es un fallo total, igual que antes de este
+    // cambio. Con algunos creados, informar el resultado real: reenviar el
+    // formulario duplicaria los tickets que si existen.
+    if (ticketIds.length === 0) {
+      return { status: "Failed", errorMessage };
+    }
+    return { status: "Partial", ticketIds, productosFallidos, errorMessage };
   } catch (err) {
     if (err instanceof C4CError && err.isBusinessRuleFailure) {
       return {

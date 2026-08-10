@@ -105,6 +105,30 @@ describe("handleSubmitServiceRequest", () => {
     );
   });
 
+  it("devuelve 201 con tickets y productos fallidos cuando la orquestacion es parcial", async () => {
+    mockOrchestration.mockResolvedValue({
+      status: "Partial",
+      ticketIds: ["138401"],
+      productosFallidos: ["10054512"],
+      errorMessage: "No pudimos completar tu solicitud: Cupos agotados",
+    });
+
+    const res = await handleSubmitServiceRequest(validBody, fakeLog());
+
+    expect(res.httpStatus).toBe(201);
+    expect(res.body).toEqual({
+      status: "Partial",
+      ticketIds: ["138401"],
+      productosFallidos: ["10054512"],
+      errorMessage: "No pudimos completar tu solicitud: Cupos agotados",
+    });
+    expect(mockRecordSubmission).toHaveBeenCalledWith(expect.anything(), {
+      status: "Partial",
+      ticketIds: ["138401"],
+      errorMessage: "No pudimos completar tu solicitud: Cupos agotados",
+    });
+  });
+
   it("devuelve 500 si faltan las variables de entorno de C4C", async () => {
     delete process.env.C4C_BASE_URL;
 

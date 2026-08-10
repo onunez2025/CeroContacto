@@ -2,8 +2,8 @@ import sql from "mssql";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 
 export interface SubmissionOutcome {
-  /** "Completed" | "Failed" (regla de negocio) | "Error" (excepcion no controlada, ej. C4C caido). */
-  status: "Completed" | "Failed" | "Error";
+  /** "Completed" | "Partial" (algunos equipos sin ticket) | "Failed" (regla de negocio) | "Error" (excepcion no controlada, ej. C4C caido). */
+  status: "Completed" | "Partial" | "Failed" | "Error";
   ticketIds?: string[];
   errorMessage?: string;
   /** Detalle tecnico (mensaje/stack crudo) - nunca se muestra al cliente, solo para diagnostico. */

@@ -58,6 +58,22 @@ export async function handleSubmitServiceRequest(body: unknown, log: RequestLog)
       await recordSubmissionSafely(parsed.data, { status: "Completed", ticketIds: result.ticketIds }, log);
       return { httpStatus: 201, body: { status: "Completed", ticketIds: result.ticketIds } };
     }
+    if (result.status === "Partial") {
+      await recordSubmissionSafely(
+        parsed.data,
+        { status: "Partial", ticketIds: result.ticketIds, errorMessage: result.errorMessage },
+        log,
+      );
+      return {
+        httpStatus: 201,
+        body: {
+          status: "Partial",
+          ticketIds: result.ticketIds,
+          productosFallidos: result.productosFallidos,
+          errorMessage: result.errorMessage,
+        },
+      };
+    }
     await recordSubmissionSafely(parsed.data, { status: "Failed", errorMessage: result.errorMessage }, log);
     return { httpStatus: 200, body: { status: "Failed", errorMessage: result.errorMessage } };
   } catch (err) {

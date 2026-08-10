@@ -32,10 +32,48 @@ function escapeODataString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** Maximo de sugerencias que devuelve el autocompletado. */
+const MAX_RESULTS = 20;
+
+interface ProductRow {
+  ProductID: string;
+  Description: string;
+}
+
+/**
+ * Una sola consulta acotada a categoria + activo + coincidencia parcial
+ * sobre UN campo. No se combinan dos campos con "or" en el mismo $filter:
+ * C4C lo rechaza con un 500 real ("Operanden des logischen Operators ''
+ * sind nicht gultig"), confirmado en vivo contra produccion el 2026-08-10
+ * - fue la causa de que el buscador de productos dejara de responder.
+ * Cada campo por separado si funciona, por eso searchProducts hace dos
+ * consultas y las fusiona.
+ */
+async function searchByField(
+  categoriaId: string,
+  texto: string,
+  campo: "Description" | "ProductID",
+  client: IC4CODataClient,
+): Promise<ProductRow[]> {
+  const filter = [
+    `ProductCategoryID eq '${escapeODataString(categoriaId)}'`,
+    `Status eq '2'`,
+    `substringof('${texto}',${campo})`,
+  ].join(" and ");
+
+  return client.getCollection<ProductRow>(
+    `${NS}/ProductCollection?$filter=${encodeURIComponent(filter)}&$top=${MAX_RESULTS}&$select=ProductID,Description`,
+  );
+}
+
 /**
  * Busca productos activos de una categoria por coincidencia parcial de
- * nombre (autocompletado). Contra el cliente de catalogo (produccion,
- * solo lectura) - nunca se usa para crear nada.
+ * nombre O de codigo (autocompletado). Contra el cliente de catalogo
+ * (produccion, solo lectura) - nunca se usa para crear nada.
+ *
+ * Las dos consultas van en paralelo y se fusionan aca, deduplicando por
+ * ProductID (un producto puede matchear por ambos campos). Ver la nota de
+ * searchByField sobre por que no se resuelve con un solo $filter.
  */
 export async function searchProducts(
   categoriaId: string,
@@ -46,15 +84,18 @@ export async function searchProducts(
   if (!CATEGORY_IDS.has(categoriaId) || trimmed.length < 2) return [];
 
   const texto = escapeODataString(trimmed.toUpperCase());
-  const filter = [
-    `ProductCategoryID eq '${escapeODataString(categoriaId)}'`,
-    `Status eq '2'`,
-    `(substringof('${texto}',Description) or substringof('${texto}',ProductID))`,
-  ].join(" and ");
+  const [porDescripcion, porCodigo] = await Promise.all([
+    searchByField(categoriaId, texto, "Description", client),
+    searchByField(categoriaId, texto, "ProductID", client),
+  ]);
 
-  const results = await client.getCollection<{ ProductID: string; Description: string }>(
-    `${NS}/ProductCollection?$filter=${encodeURIComponent(filter)}&$top=20&$select=ProductID,Description`,
-  );
-
-  return results.map((r) => ({ productId: r.ProductID, nombre: r.Description }));
+  const vistos = new Set<string>();
+  const fusionados: ProductCatalogItem[] = [];
+  for (const row of [...porDescripcion, ...porCodigo]) {
+    if (vistos.has(row.ProductID)) continue;
+    vistos.add(row.ProductID);
+    fusionados.push({ productId: row.ProductID, nombre: row.Description });
+    if (fusionados.length === MAX_RESULTS) break;
+  }
+  return fusionados;
 }

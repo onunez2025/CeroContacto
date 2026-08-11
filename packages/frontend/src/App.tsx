@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
 import { ServiceRequestSubmissionSchema, isValidCe, isValidDni, isValidRuc } from "@cerocontacto/shared";
-import { PERU_DISTRITOS } from "@cerocontacto/shared";
+import { PERU_DISTRITOS, PERU_DEPARTAMENTOS, PERU_PROVINCIAS } from "@cerocontacto/shared";
 import {
   ApiError,
   hasActiveCoverage,
@@ -14,13 +14,10 @@ import {
   type SubmitResult,
 } from "./api.js";
 import { FieldError } from "./FieldError.js";
-import { PERU_DEPARTAMENTOS } from "./peruDepartamentos.js";
-import { PERU_PROVINCIAS } from "./peruProvincias.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 import { Spinner } from "./Spinner.js";
-
 interface ProductoForm {
   numeroSerie: string;
   productId: string;
@@ -30,9 +27,7 @@ interface ProductoForm {
   /** Data URLs (redimensionadas) - hasta 6 por producto. */
   fotos: string[];
 }
-
 const MAX_PRODUCTOS = 4;
-
 interface FormState {
   tipoDocumento: "RUC" | "DNI" | "CE";
   numeroDocumento: string;
@@ -58,7 +53,6 @@ interface FormState {
   medioContacto: "whatsapp" | "email" | "celular";
   consentimiento: boolean;
 }
-
 const initialState: FormState = {
   tipoDocumento: "DNI",
   numeroDocumento: "",
@@ -83,15 +77,12 @@ const initialState: FormState = {
   medioContacto: "whatsapp",
   consentimiento: false,
 };
-
 const FORM_PROGRESS_KEY = "cerocontacto:form-progress";
 const FORM_PROGRESS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
 interface StoredProgress {
   savedAt: number;
   form: FormState;
 }
-
 /**
  * Valida que un item de productos guardado tenga la forma minima
  * esperada de ProductoForm - sin esto, un item con forma inesperada
@@ -111,7 +102,6 @@ function isValidStoredProducto(item: unknown): item is ProductoForm {
     Array.isArray(p.fotos)
   );
 }
-
 /**
  * Lee el progreso guardado en localStorage, si existe, no tiene mas de
  * 24h, y tiene la forma esperada. Cualquier fallo (JSON invalido,
@@ -138,7 +128,6 @@ function loadStoredProgress(): FormState {
     return initialState;
   }
 }
-
 function saveProgress(form: FormState): void {
   try {
     const toStore: StoredProgress = {
@@ -150,7 +139,6 @@ function saveProgress(form: FormState): void {
     // localStorage puede fallar (modo incognito, cuota excedida) - no bloquea el uso del formulario.
   }
 }
-
 function clearStoredProgress(): void {
   try {
     localStorage.removeItem(FORM_PROGRESS_KEY);
@@ -158,7 +146,6 @@ function clearStoredProgress(): void {
     // no-op
   }
 }
-
 function buildSubmission(form: FormState): unknown {
   const common = {
     telefono: form.telefono.trim(),
@@ -186,7 +173,6 @@ function buildSubmission(form: FormState): unknown {
     consentimiento: form.consentimiento,
     captchaToken: "pending-captcha-integration",
   };
-
   if (form.tipoDocumento === "RUC") {
     return {
       ...common,
@@ -195,7 +181,6 @@ function buildSubmission(form: FormState): unknown {
       razonSocial: form.razonSocial.trim(),
     };
   }
-
   return {
     ...common,
     tipoDocumento: form.tipoDocumento,
@@ -204,11 +189,8 @@ function buildSubmission(form: FormState): unknown {
     apellidos: form.apellidos.trim(),
   };
 }
-
 type Phase = "editing" | "submitting" | "done";
-
 const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=5116190500&text&type=phone_number&app_absent=0";
-
 function HeroPanel() {
   return (
     <aside className="hero">
@@ -223,19 +205,16 @@ function HeroPanel() {
     </aside>
   );
 }
-
 interface StepDef {
   n: 1 | 2 | 3 | 4;
   label: string;
 }
-
 const STEPS: StepDef[] = [
   { n: 1, label: "Datos personales" },
   { n: 2, label: "Dirección" },
   { n: 3, label: "Equipos" },
   { n: 4, label: "Fecha" },
 ];
-
 function StepHeader({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
   return (
     <>
@@ -255,7 +234,6 @@ function StepHeader({ current, onSelect }: { current: number; onSelect: (step: n
     </>
   );
 }
-
 /** A que paso pertenece cada campo, para saltar al primero con error si falla la validacion final. */
 function stepForField(path: string): number {
   if (path.startsWith("direccion.")) return 2;
@@ -263,11 +241,9 @@ function stepForField(path: string): number {
   if (path === "fechaVisita" || path === "comentario" || path === "medioContacto" || path === "consentimiento") return 4;
   return 1;
 }
-
 function sanitizeDigits(value: string, maxLen: number): string {
   return value.replace(/\D/g, "").slice(0, maxLen);
 }
-
 export default function App() {
   const [form, setForm] = useState<FormState>(loadStoredProgress);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -279,11 +255,9 @@ export default function App() {
   const [customerLookupStatus, setCustomerLookupStatus] = useState<"idle" | "loading" | "found">("idle");
   const [lookedUpDocumento, setLookedUpDocumento] = useState<string | null>(null);
   const numeroDocumentoRef = useRef(form.numeroDocumento);
-
   useEffect(() => {
     numeroDocumentoRef.current = form.numeroDocumento;
   }, [form.numeroDocumento]);
-
   // No guardar en el primer render: ese "cambio" es solo el progreso que
   // ya se acaba de leer de localStorage (o el estado inicial vacio), no
   // una edicion real - guardarlo re-marcaria savedAt con datos que ya
@@ -301,20 +275,17 @@ export default function App() {
     if (form === initialFormRef.current) return;
     saveProgress(form);
   }, [form]);
-
   const DOCUMENT_VALIDATORS: Record<FormState["tipoDocumento"], (v: string) => boolean> = {
     DNI: isValidDni,
     CE: isValidCe,
     RUC: isValidRuc,
   };
-
   // Mismo patron que PHONE_REGEX en shared/schemas/serviceRequestDto.ts -
   // duplicado a proposito (validacion temprana en el frontend, no
   // autoritativa) para no depender de un export interno de shared solo
   // para esto. La validacion final sigue siendo el schema Zod al enviar.
   const PHONE_FORMAT_REGEX = /^\d{9}$/;
   const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   function clearAutofilledFields() {
     setForm((prev) => ({
       ...prev,
@@ -333,13 +304,11 @@ export default function App() {
       codigoPostal: "",
     }));
   }
-
   function validateOnBlur(key: string, value: string, isValid: (v: string) => boolean, message: string) {
     const trimmed = value.trim();
     if (!trimmed || isValid(trimmed)) return;
     setFieldErrors((prev) => ({ ...prev, [key]: message }));
   }
-
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
       if (!(key in prev)) return prev;
@@ -348,13 +317,11 @@ export default function App() {
       return next;
     });
   }
-
   async function handleDocumentoBlur() {
     const numeroDocumento = form.numeroDocumento.trim();
     const tipoLabel = form.tipoDocumento === "RUC" ? "RUC" : form.tipoDocumento === "CE" ? "Carné de extranjería" : "DNI";
     validateOnBlur("numeroDocumento", numeroDocumento, DOCUMENT_VALIDATORS[form.tipoDocumento], `${tipoLabel} inválido`);
     if (!DOCUMENT_VALIDATORS[form.tipoDocumento](numeroDocumento)) return;
-
     setCustomerLookupStatus("loading");
     try {
       const result = await lookupCustomer(form.tipoDocumento, numeroDocumento);
@@ -385,7 +352,6 @@ export default function App() {
       }));
       setLookedUpDocumento(numeroDocumento);
       setCustomerLookupStatus("found");
-
       // El codigoPostal guardado del cliente nunca paso por
       // regionxdepartamento (no se valido contra zonas de cobertura activas
       // al momento de guardarse) - revalidarlo en segundo plano, sin
@@ -410,7 +376,6 @@ export default function App() {
       setCustomerLookupStatus("idle");
     }
   }
-
   function handleDocumentoChange(value: string) {
     const maxLen = form.tipoDocumento === "DNI" ? 8 : form.tipoDocumento === "RUC" ? 11 : null;
     const sanitized = maxLen !== null ? sanitizeDigits(value, maxLen) : value;
@@ -422,7 +387,6 @@ export default function App() {
     update("numeroDocumento", sanitized);
     clearFieldError("numeroDocumento");
   }
-
   const [coverageStatus, setCoverageStatus] = useState<"idle" | "checking" | "covered" | "not-covered" | "error">(
     "idle",
   );
@@ -435,13 +399,11 @@ export default function App() {
   const [postalSearchError, setPostalSearchError] = useState<string | null>(null);
   const postalDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const postalRequestIdRef = useRef(0);
-
   useEffect(() => {
     if (form.codigoPostal && !postalQuery) {
       setPostalQuery(form.codigoPostal);
     }
   }, [form.codigoPostal]);
-
   useEffect(() => {
     if (!form.departamento) {
       setCoverageStatus("idle");
@@ -476,7 +438,6 @@ export default function App() {
       cancelled = true;
     };
   }, [form.departamento]);
-
   function handleDepartamentoChange(value: string) {
     // Cancelar cualquier busqueda debounced pendiente (aun no disparada) del
     // departamento anterior, y "invalidar" cualquier busqueda ya en vuelo
@@ -484,19 +445,16 @@ export default function App() {
     // handlePostalQueryChange, que descarta respuestas cuyo id ya no coincide.
     if (postalDebounceRef.current) clearTimeout(postalDebounceRef.current);
     postalRequestIdRef.current += 1;
-
     setForm((prev) => ({ ...prev, departamento: value, provincia: "", distrito: "", codigoPostal: "" }));
     setPostalQuery("");
     setPostalResults([]);
     setPostalHasMore(false);
     setPostalOpen(false);
   }
-
   function handlePostalQueryChange(value: string) {
     setPostalQuery(value);
     if (form.codigoPostal) update("codigoPostal", "");
     if (postalDebounceRef.current) clearTimeout(postalDebounceRef.current);
-
     if (value.trim().length < 2) {
       setPostalResults([]);
       setPostalHasMore(false);
@@ -505,7 +463,6 @@ export default function App() {
       setPostalHighlightedIndex(-1);
       return;
     }
-
     postalDebounceRef.current = setTimeout(() => {
       // Id monotonico capturado al momento de disparar la busqueda real (no
       // al tipear): si el departamento cambia mientras esta solicitud sigue
@@ -538,7 +495,6 @@ export default function App() {
         });
     }, 300);
   }
-
   /**
    * El dropdown de Distrito (UBIGEO estatico) y el buscador de codigo
    * postal (contra cobertura real de C4C) son independientes - elegir un
@@ -553,7 +509,6 @@ export default function App() {
     const distrito = PERU_DISTRITOS.find((d) => d.id === value);
     if (distrito) handlePostalQueryChange(distrito.nombre);
   }
-
   function selectPostalMatch(item: PostalCodeMatch) {
     update("codigoPostal", item.codigoPostal);
     setPostalQuery(`${item.distrito} — ${item.codigoPostal}`);
@@ -561,7 +516,6 @@ export default function App() {
     setPostalHasMore(false);
     setPostalOpen(false);
   }
-
   function handlePostalInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (!postalOpen || postalResults.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -581,23 +535,19 @@ export default function App() {
       setPostalHighlightedIndex(-1);
     }
   }
-
   function goToStep(next: number) {
     setStep(next);
     document.querySelector(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-
   function patchProducto(index: number, patch: Partial<ProductoForm>) {
     setForm((prev) => ({
       ...prev,
       productos: prev.productos.map((p, i) => (i === index ? { ...p, ...patch } : p)),
     }));
   }
-
   function addProducto() {
     setForm((prev) =>
       prev.productos.length >= MAX_PRODUCTOS
@@ -605,18 +555,14 @@ export default function App() {
         : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "", categoria: "", productNombre: "", fotos: [] }] },
     );
   }
-
   function removeProducto(index: number) {
     setForm((prev) => ({ ...prev, productos: prev.productos.filter((_, i) => i !== index) }));
   }
-
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitError(null);
-
     const candidate = buildSubmission(form);
     const parsed = ServiceRequestSubmissionSchema.safeParse(candidate);
-
     if (!parsed.success) {
       const errors: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
@@ -627,7 +573,6 @@ export default function App() {
       goToStep(firstErrorStep);
       return;
     }
-
     setFieldErrors({});
     setPhase("submitting");
     try {
@@ -641,7 +586,6 @@ export default function App() {
       setSubmitError(err instanceof ApiError ? err.message : "No pudimos conectarnos con el servidor.");
     }
   }
-
   if (showWelcome) {
     return (
       <main className="page">
@@ -658,7 +602,6 @@ export default function App() {
       </main>
     );
   }
-
   /**
    * Pantalla de espera dedicada, en vez de dejar el boton "Enviando..."
    * girando. El envio tarda ~20s reales contra C4C (medido en produccion),
@@ -684,7 +627,6 @@ export default function App() {
       </main>
     );
   }
-
   if (phase === "done" && result) {
     return (
       <main className="page">
@@ -770,7 +712,6 @@ export default function App() {
       </main>
     );
   }
-
   return (
     <main className="page">
       <HeroPanel />
@@ -782,7 +723,6 @@ export default function App() {
           {step === 1 && (
           <fieldset>
             <legend>Datos personales</legend>
-
             <div className="field">
               <label htmlFor="tipoDocumento">Tipo de documento</label>
               <select
@@ -795,7 +735,6 @@ export default function App() {
                 <option value="CE">Carné de Extranjería</option>
               </select>
             </div>
-
             <div className="field">
               <label htmlFor="numeroDocumento">Número de documento</label>
               <input
@@ -810,7 +749,6 @@ export default function App() {
               {customerLookupStatus === "loading" && <p className="hint hint-validating"><Spinner />Estamos validando el número de documento.</p>}
               {customerLookupStatus === "found" && <p className="hint hint-validating">Datos encontrados, puedes corregirlos si cambiaron.</p>}
             </div>
-
             {form.tipoDocumento === "RUC" ? (
               <div className="field">
                 <label htmlFor="razonSocial">Razón social</label>
@@ -843,7 +781,6 @@ export default function App() {
                 </div>
               </>
             )}
-
             <div className="field-row">
               <div className="field">
                 <label htmlFor="telefono">Teléfono de contacto (línea 1)</label>
@@ -872,7 +809,6 @@ export default function App() {
                 <FieldError message={fieldErrors.telefono2} />
               </div>
             </div>
-
             <div className="field">
               <label htmlFor="email">Email</label>
               <input
@@ -887,7 +823,6 @@ export default function App() {
               />
               <FieldError message={fieldErrors.email} />
             </div>
-
             <div className="field">
               <label htmlFor="lugarCompra">¿Dónde compraste tus productos?</label>
               <select id="lugarCompra" value={form.lugarCompra} onChange={(e) => update("lugarCompra", e.target.value)}>
@@ -900,7 +835,6 @@ export default function App() {
               </select>
               <FieldError message={fieldErrors.lugarCompra} />
             </div>
-
             <div className="step-actions">
               <button
                 type="button"
@@ -913,11 +847,9 @@ export default function App() {
             </div>
           </fieldset>
           )}
-
           {step === 2 && (
           <fieldset>
             <legend>Dirección de instalación</legend>
-
             <div className="field">
               <label htmlFor="departamento">Departamento</label>
               <select id="departamento" value={form.departamento} onChange={(e) => handleDepartamentoChange(e.target.value)}>
@@ -930,7 +862,6 @@ export default function App() {
               </select>
               <FieldError message={fieldErrors["direccion.departamento"]} />
             </div>
-
             <div className="field-row">
               <div className="field">
                 <label htmlFor="provincia">Provincia</label>
@@ -967,7 +898,6 @@ export default function App() {
                 <FieldError message={fieldErrors["direccion.distrito"]} />
               </div>
             </div>
-
             <div className="field">
               <label htmlFor="direccion">Dirección</label>
               <input
@@ -979,7 +909,6 @@ export default function App() {
               />
               <FieldError message={fieldErrors["direccion.direccion"]} />
             </div>
-
             <div className="field-row">
               <div className="field">
                 <label htmlFor="numero">Número</label>
@@ -1073,7 +1002,6 @@ export default function App() {
                 <FieldError message={fieldErrors["direccion.codigoPostal"]} />
               </div>
             </div>
-
             <div className="field">
               <label htmlFor="referencia">Referencia</label>
               <input
@@ -1089,7 +1017,6 @@ export default function App() {
               <label htmlFor="piso">Piso / dpto. (opcional)</label>
               <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", e.target.value)} />
             </div>
-
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(1)}>
                 Anterior
@@ -1100,7 +1027,6 @@ export default function App() {
             </div>
           </fieldset>
           )}
-
           {step === 3 && (
           <fieldset>
             <legend>Tus equipos</legend>
@@ -1108,7 +1034,6 @@ export default function App() {
               Agrega un producto por cada equipo que necesites instalar (ej. cocina, horno y campana del mismo combo) —
               se agenda una sola visita y se genera un ticket por equipo.
             </p>
-
             {form.productos.map((producto, index) => (
               <div className="producto-row" key={index}>
                 <p className="producto-label">{index === 0 ? "Producto principal" : `Producto adicional ${index}`}</p>
@@ -1141,14 +1066,12 @@ export default function App() {
                 ) : null}
               </div>
             ))}
-
             {form.productos.length < MAX_PRODUCTOS ? (
               <button type="button" className="btn-secondary" onClick={addProducto}>
                 + Agregar otro producto
               </button>
             ) : null}
             <FieldError message={fieldErrors.productos} />
-
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(2)}>
                 Anterior
@@ -1159,7 +1082,6 @@ export default function App() {
             </div>
           </fieldset>
           )}
-
           {step === 4 && (
           <fieldset>
             <legend>Fecha de visita</legend>
@@ -1175,7 +1097,6 @@ export default function App() {
               />
               <p className="hint">Fecha tentativa, sujeta a disponibilidad de cupos - un asesor confirmara la fecha y el tecnico asignado por WhatsApp o email.</p>
             </div>
-
             <div className="field">
               <label htmlFor="comentario">Cuéntanos más sobre el estado de tu producto y el servicio que requieres (opcional)</label>
               <textarea
@@ -1185,7 +1106,6 @@ export default function App() {
                 onChange={(e) => update("comentario", e.target.value)}
               />
             </div>
-
             <div className="field">
               <label>¿Por qué medio deseas ser contactado?</label>
               <div className="choice-row">
@@ -1218,15 +1138,12 @@ export default function App() {
                 </label>
               </div>
             </div>
-
             <label className="checkbox-row">
               <input type="checkbox" checked={form.consentimiento} onChange={(e) => update("consentimiento", e.target.checked)} />
               <span>He leído y acepto la política de privacidad.</span>
             </label>
             <FieldError message={fieldErrors.consentimiento} />
-
             {submitError ? <p className="error-banner">{submitError}</p> : null}
-
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(3)}>
                 Anterior

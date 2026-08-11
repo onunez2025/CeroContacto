@@ -1,5 +1,5 @@
 import type { ServiceRequestSubmission } from "@cerocontacto/shared";
-import { PERU_DISTRITOS } from "@cerocontacto/shared";
+import { PERU_DEPARTAMENTOS, PERU_DISTRITOS, PERU_PROVINCIAS } from "@cerocontacto/shared";
 
 /**
  * Envio del correo de confirmacion al cliente via Microsoft Graph
@@ -102,11 +102,19 @@ function formatFecha(iso: string): string {
   return `${Number(day)} de ${mes} de ${year}`;
 }
 
+/**
+ * "AV. EL SOL 555, CHORRILLOS, LIMA, LIMA" - calle+numero, distrito,
+ * provincia y departamento, en el mismo orden que la plataforma actual.
+ * Cada nivel se omite si su codigo no resuelve a un nombre conocido, en vez
+ * de imprimir el codigo crudo (que no significa nada para el cliente).
+ */
 function buildDireccionTexto(submission: ServiceRequestSubmission): string {
   const { direccion } = submission;
   const distrito = PERU_DISTRITOS.find((d) => d.id === direccion.distrito)?.nombre;
-  const partes = [`${direccion.direccion} ${direccion.numero}`.trim(), distrito].filter(Boolean);
-  return partes.join(", ");
+  const provincia = PERU_PROVINCIAS.find((p) => p.id === direccion.provincia)?.nombre;
+  const departamento = PERU_DEPARTAMENTOS.find((d) => d.code === direccion.departamento)?.label;
+  const calle = [direccion.direccion, direccion.numero].map((s) => s.trim()).filter(Boolean).join(" ");
+  return [calle, distrito, provincia, departamento].filter(Boolean).join(", ");
 }
 
 function nombreDelCliente(submission: ServiceRequestSubmission): string {
@@ -130,41 +138,103 @@ function buildSubject(input: TicketConfirmationInput): string {
     : "Tu solicitud de instalacion fue registrada";
 }
 
+const WHATSAPP_TEL = "(01) 6190500";
+const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=5116190500&text&type=phone_number&app_absent=0";
+const SITIO_WEB = "www.gruposole.com.pe";
+const AZUL = "#3d4f6b";
+const ROJO = "#c1121f";
+
+/** Una fila de dos columnas del recuadro de resumen. */
+function filaResumen(izq: [string, string], der?: [string, string]): string {
+  const celda = ([etiqueta, valor]: [string, string]) =>
+    `<td style="padding:10px 14px;vertical-align:top;width:50%;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a">
+       <strong style="display:block;color:${AZUL}">${escapeHtml(etiqueta)}</strong>${escapeHtml(valor)}
+     </td>`;
+  return `<tr>${celda(izq)}${der ? celda(der) : '<td style="width:50%"></td>'}</tr>`;
+}
+
+/**
+ * Cuerpo del correo en el formato de la plataforma actual: barra con logo,
+ * banner, saludo, aviso de contacto por WhatsApp y recuadro de resumen.
+ *
+ * Se arma con tablas y estilos en linea a proposito: los clientes de correo
+ * (Outlook sobre todo) no soportan flex/grid ni hojas de estilo externas.
+ */
 function buildHtml(input: TicketConfirmationInput): string {
   const { submission, ticketIds, productosFallidos } = input;
   const saludo = escapeHtml(nombreDelCliente(submission));
-  const fecha = escapeHtml(formatFecha(submission.fechaVisita));
-  const direccion = escapeHtml(buildDireccionTexto(submission));
+  const fecha = formatFecha(submission.fechaVisita);
+  const direccion = buildDireccionTexto(submission);
 
-  const tickets =
-    ticketIds.length === 1
-      ? `<p>Tu numero de ticket es <strong>${escapeHtml(ticketIds[0] as string)}</strong>.</p>`
-      : `<p>Se genero un ticket por cada equipo:</p><ul>${ticketIds
-          .map((id) => `<li><strong>${escapeHtml(id)}</strong></li>`)
-          .join("")}</ul>`;
-
-  // En un resultado parcial no se listan modelos: el correo solo conoce el
-  // productId (un codigo interno que no significa nada para el cliente), asi
-  // que se le indica cuantos equipos faltaron y que un asesor los vera.
-  const faltantes = productosFallidos?.length
-    ? `<p>No pudimos agendar ${productosFallidos.length === 1 ? "uno de tus equipos" : `${productosFallidos.length} de tus equipos`}.
-       Un asesor se comunicara contigo para completar el registro.</p>`
+  const bannerUrl = process.env.PUBLIC_BASE_URL
+    ? `${process.env.PUBLIC_BASE_URL.replace(/\/$/, "")}/email-banner.png`
+    : undefined;
+  const banner = bannerUrl
+    ? `<tr><td style="padding:0"><img src="${escapeHtml(bannerUrl)}" width="600" alt="Grupo Sole - Asegura la vida util de tus equipos"
+         style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>`
     : "";
 
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a">
-  <p>Hola ${saludo},</p>
-  <p>Registramos tu solicitud de instalacion.</p>
-  ${tickets}
-  ${faltantes}
-  <p>
-    <strong>Fecha solicitada:</strong> ${fecha}<br>
-    <strong>Direccion:</strong> ${direccion}
-  </p>
-  <p>Un asesor te contactara por WhatsApp o correo en las proximas horas para confirmar la fecha
-  y el tecnico asignado. La fecha que elegiste es tentativa hasta esa confirmacion.</p>
-  <p>Si necesitas ayuda, escribenos al (01) 6190500.</p>
-  <p style="color:#666;font-size:13px">Grupo Sole - Rinnai Corporation</p>
-</div>`;
+  const ticketsFila =
+    ticketIds.length === 1
+      ? filaResumen(["Numero de ticket:", ticketIds[0] as string])
+      : filaResumen(["Numeros de ticket:", ticketIds.join(", ")]);
+
+  // En un resultado parcial el correo solo conoce el productId, un codigo
+  // interno sin significado para el cliente: se le dice cuantos equipos
+  // faltaron y que un asesor los vera, sin mostrar codigos.
+  const faltantes = productosFallidos?.length
+    ? `<tr><td style="padding:0 14px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${ROJO}">
+         No pudimos agendar ${productosFallidos.length === 1 ? "uno de tus equipos" : `${productosFallidos.length} de tus equipos`}.
+         Un asesor se comunicara contigo para completarlo.
+       </td></tr>`
+    : "";
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f5f7;padding:16px 0">
+<tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff">
+
+  <tr><td style="padding:18px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${AZUL}" align="right">
+    Web: ${escapeHtml(SITIO_WEB)}
+  </td></tr>
+  ${banner}
+
+  <tr><td align="center" style="padding:26px 24px 6px;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;color:#1a1a1a">
+    Hola, ${saludo}
+  </td></tr>
+
+  <tr><td align="center" style="padding:0 32px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a">
+    Estamos procesando su solicitud, y maximo en 24 horas le llegara un
+    <strong>WhatsApp (01-6190500)</strong> confirmando la fecha de atencion.
+  </td></tr>
+
+  <tr><td align="center" style="padding:0 24px 12px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;color:${ROJO}">
+    Resumen del servicio solicitado
+  </td></tr>
+
+  <tr><td style="padding:0 24px 20px">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #dcdfe4;border-radius:6px">
+      ${filaResumen(["Direccion:", direccion], ["Referencia:", submission.direccion.referencia])}
+      ${filaResumen(["Tipo de servicio:", "Instalacion"], ["Tienda donde compro:", submission.lugarCompra])}
+      ${filaResumen(["Fecha deseada:", fecha])}
+      ${ticketsFila}
+      ${faltantes}
+    </table>
+  </td></tr>
+
+  <tr><td align="center" style="padding:0 24px 12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a">
+    Para solicitar mayor informacion contactarse al WhatsApp.
+  </td></tr>
+
+  <tr><td align="center" style="padding:0 24px 30px">
+    <a href="${WHATSAPP_URL}" style="display:inline-block;background:${AZUL};color:#ffffff;text-decoration:none;
+       font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;padding:13px 34px;border-radius:26px">
+      ${escapeHtml(WHATSAPP_TEL)}
+    </a>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>`;
 }
 
 /**

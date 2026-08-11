@@ -142,6 +142,56 @@ describe("sendTicketConfirmation", () => {
     expect(body.message.body.content).not.toContain("10054512");
   });
 
+  it("arma la direccion con distrito, provincia y departamento", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTicketConfirmation({ submission, ticketIds: ["1401544"] }, fakeLog());
+
+    const html = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string).message.body.content;
+    // distrito 1254 = BARRANCO, provincia 128 = LIMA, departamento 15 = Lima
+    expect(html).toContain("AV. EL SOL 555, BARRANCO, LIMA, Lima");
+  });
+
+  it("incluye el resumen del servicio y el boton de WhatsApp", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTicketConfirmation({ submission, ticketIds: ["1401544"] }, fakeLog());
+
+    const html = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string).message.body.content;
+    expect(html).toContain("Resumen del servicio solicitado");
+    expect(html).toContain("maximo en 24 horas");
+    expect(html).toContain("SODIMAC PERU S.A.");
+    expect(html).toContain("Frente al parque");
+    expect(html).toContain("Instalacion");
+    expect(html).toContain("api.whatsapp.com");
+  });
+
+  it("omite el banner si no hay PUBLIC_BASE_URL, sin romper el correo", async () => {
+    delete process.env.PUBLIC_BASE_URL;
+    const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ok = await sendTicketConfirmation({ submission, ticketIds: ["1401544"] }, fakeLog());
+
+    const html = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string).message.body.content;
+    expect(ok).toBe(true);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Hola, ALVARO");
+  });
+
+  it("incluye el banner cuando hay PUBLIC_BASE_URL, sin barra doble", async () => {
+    process.env.PUBLIC_BASE_URL = "https://ejemplo.test/";
+    const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTicketConfirmation({ submission, ticketIds: ["1401544"] }, fakeLog());
+
+    const html = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string).message.body.content;
+    expect(html).toContain('src="https://ejemplo.test/email-banner.png"');
+  });
+
   it("escapa el HTML de los datos del cliente", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);

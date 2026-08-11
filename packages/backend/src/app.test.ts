@@ -110,6 +110,33 @@ describe("createApp", () => {
     expect(res.body).toEqual({ status: "Completed", ticketIds: ["138401"] });
   });
 
+  it("POST /api/service-requests corta con 429 despues de 20 envios de la misma IP", async () => {
+    // Es la unica ruta que escribe en C4C y hasta el 2026-08-10 no tenia
+    // ningun limite: cualquiera podia crear tickets reales sin freno.
+    mockOrchestration.mockResolvedValue({ status: "Completed", ticketIds: ["138401"] });
+    const app = createApp();
+
+    for (let i = 0; i < 20; i++) {
+      expect((await request(app).post("/api/service-requests").send(validBody)).status).toBe(201);
+    }
+
+    const res = await request(app).post("/api/service-requests").send(validBody);
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({ error: "Demasiadas solicitudes. Intenta de nuevo en un momento." });
+  });
+
+  it("el limite del POST es propio y no lo consumen las rutas de lectura", async () => {
+    mockGetFechasDisponibles.mockResolvedValue([]);
+    mockOrchestration.mockResolvedValue({ status: "Completed", ticketIds: ["138401"] });
+    const app = createApp();
+
+    for (let i = 0; i < 30; i++) {
+      await request(app).get("/api/fechas-disponibles?departamento=15&codigoPostal=07021");
+    }
+
+    expect((await request(app).post("/api/service-requests").send(validBody)).status).toBe(201);
+  });
+
   it("GET /api/fechas-disponibles devuelve las fechas del motor de cupos", async () => {
     mockGetFechasDisponibles.mockResolvedValue(["2026-08-03", "2026-08-05"]);
 

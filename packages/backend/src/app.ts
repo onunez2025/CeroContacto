@@ -26,7 +26,25 @@ export function createApp(): Express {
     res.status(200).json({ status: "ok" });
   });
 
-  app.post("/api/service-requests", async (req, res) => {
+  /**
+   * 20/hora por IP. Es la ruta mas cara y la unica que ESCRIBE en C4C: cada
+   * envio crea cliente, producto registrado y ticket reales, y tarda ~20s.
+   * Hasta ahora no tenia ningun limite, y el captchaToken que exige el DTO
+   * es un placeholder que nadie verifica contra un proveedor (ver
+   * captchaToken en shared/serviceRequestDto.ts), asi que en la practica el
+   * endpoint estaba completamente abierto - confirmado en vivo el
+   * 2026-08-10 creando tickets reales con peticiones directas, sin navegador.
+   *
+   * La ventana es de una hora y el limite generoso a proposito: un cliente
+   * legitimo envia 1-3 veces, pero las operadoras moviles de Peru usan CGNAT
+   * y una tienda podria registrar a varios clientes desde la misma IP. 20/h
+   * no estorba a ninguno de esos casos y aun asi corta en seco el abuso
+   * trivial (un script en paralelo pasa de ilimitado a 20). No sustituye al
+   * CAPTCHA real, que sigue pendiente.
+   */
+  const submitRateLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 20 });
+
+  app.post("/api/service-requests", submitRateLimiter, async (req, res) => {
     const result = await handleSubmitServiceRequest(req.body, console);
     res.status(result.httpStatus).json(result.body);
   });

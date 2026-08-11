@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockOrchestration, mockRecordSubmission } = vi.hoisted(() => ({
+const { mockOrchestration, mockRecordSubmission, mockSendMail } = vi.hoisted(() => ({
   mockOrchestration: vi.fn(),
   mockRecordSubmission: vi.fn().mockResolvedValue(undefined),
+  mockSendMail: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("../orchestrators/serviceRequestOrchestrator.js", () => ({
@@ -11,6 +12,10 @@ vi.mock("../orchestrators/serviceRequestOrchestrator.js", () => ({
 
 vi.mock("../infra/auditLog.js", () => ({
   recordSubmission: mockRecordSubmission,
+}));
+
+vi.mock("../infra/mailer.js", () => ({
+  sendTicketConfirmation: mockSendMail,
 }));
 
 import { handleSubmitServiceRequest } from "./submitServiceRequest.js";
@@ -59,6 +64,58 @@ describe("handleSubmitServiceRequest", () => {
     mockOrchestration.mockReset();
     mockRecordSubmission.mockReset();
     mockRecordSubmission.mockResolvedValue(undefined);
+    mockSendMail.mockReset();
+    mockSendMail.mockResolvedValue(true);
+  });
+
+  it("envia el correo de confirmacion con los tickets creados", async () => {
+    mockOrchestration.mockResolvedValue({ status: "Completed", ticketIds: ["1401544"] });
+
+    await handleSubmitServiceRequest(validBody, fakeLog());
+
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submission: expect.objectContaining({ email: validBody.email }),
+        ticketIds: ["1401544"],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("en resultado parcial el correo lleva tambien los productos fallidos", async () => {
+    mockOrchestration.mockResolvedValue({
+      status: "Partial",
+      ticketIds: ["1401544"],
+      productosFallidos: ["10054512"],
+      errorMessage: "No pudimos completar tu solicitud: Cupos agotados",
+    });
+
+    await handleSubmitServiceRequest(validBody, fakeLog());
+
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ ticketIds: ["1401544"], productosFallidos: ["10054512"] }),
+      expect.anything(),
+    );
+  });
+
+  it("no envia correo si la solicitud fallo por completo", async () => {
+    mockOrchestration.mockResolvedValue({ status: "Failed", errorMessage: "Cupos agotados" });
+
+    await handleSubmitServiceRequest(validBody, fakeLog());
+
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it("un fallo del correo no altera la respuesta al cliente", async () => {
+    // El ticket ya existe en C4C: perder el correo es una degradacion, nunca
+    // debe convertir un 201 en un error.
+    mockOrchestration.mockResolvedValue({ status: "Completed", ticketIds: ["1401544"] });
+    mockSendMail.mockRejectedValue(new Error("graph caido"));
+
+    const res = await handleSubmitServiceRequest(validBody, fakeLog());
+
+    expect(res.httpStatus).toBe(201);
+    expect(res.body).toEqual({ status: "Completed", ticketIds: ["1401544"] });
   });
 
   it("devuelve 400 con detalles cuando el DTO no pasa la validacion Zod", async () => {

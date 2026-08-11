@@ -1,6 +1,7 @@
 import { ServiceRequestSubmissionSchema } from "@cerocontacto/shared";
 import { buildC4CClientFromEnv } from "../config.js";
 import { recordSubmission } from "../infra/auditLog.js";
+import { sendTicketConfirmation } from "../infra/mailer.js";
 import { runServiceRequestOrchestration } from "../orchestrators/serviceRequestOrchestrator.js";
 
 export interface RequestLog {
@@ -26,6 +27,25 @@ async function recordSubmissionSafely(
     await recordSubmission(submission, outcome);
   } catch (err) {
     log.error("submitServiceRequest_audit_log_failed", err);
+  }
+}
+
+/**
+ * El correo de confirmacion se manda DESPUES de que el ticket ya existe en
+ * C4C, asi que perderlo es una degradacion, nunca un error de la solicitud.
+ * sendTicketConfirmation ya promete no lanzar, pero no dependemos de esa
+ * promesa: sin esta red, cualquier excepcion inesperada suya caeria en el
+ * catch general del handler y convertiria un 201 en un 502, diciendole al
+ * cliente que su solicitud fallo cuando en realidad su ticket existe.
+ */
+async function sendTicketConfirmationSafely(
+  input: Parameters<typeof sendTicketConfirmation>[0],
+  log: RequestLog,
+): Promise<void> {
+  try {
+    await sendTicketConfirmation(input, log);
+  } catch (err) {
+    log.error("submitServiceRequest_mailer_failed", err);
   }
 }
 
@@ -56,12 +76,17 @@ export async function handleSubmitServiceRequest(body: unknown, log: RequestLog)
     const result = await runServiceRequestOrchestration(parsed.data, client);
     if (result.status === "Completed") {
       await recordSubmissionSafely(parsed.data, { status: "Completed", ticketIds: result.ticketIds }, log);
+      await sendTicketConfirmationSafely({ submission: parsed.data, ticketIds: result.ticketIds }, log);
       return { httpStatus: 201, body: { status: "Completed", ticketIds: result.ticketIds } };
     }
     if (result.status === "Partial") {
       await recordSubmissionSafely(
         parsed.data,
         { status: "Partial", ticketIds: result.ticketIds, errorMessage: result.errorMessage },
+        log,
+      );
+      await sendTicketConfirmationSafely(
+        { submission: parsed.data, ticketIds: result.ticketIds, productosFallidos: result.productosFallidos },
         log,
       );
       return {

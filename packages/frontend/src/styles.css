@@ -434,6 +434,16 @@ select:disabled {
   animation: spinner-spin 0.7s linear infinite;
 }
 
+/* Variante grande para la pantalla de espera del envio, donde el spinner es
+   el unico indicador de que algo sigue ocurriendo durante ~20s. */
+.spinner-lg {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-width: 3px;
+  margin: 0 0 0.5rem;
+  vertical-align: baseline;
+}
+
 @keyframes spinner-spin {
   to {
     transform: rotate(360deg);

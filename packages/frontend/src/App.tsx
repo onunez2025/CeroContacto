@@ -659,6 +659,32 @@ export default function App() {
     );
   }
 
+  /**
+   * Pantalla de espera dedicada, en vez de dejar el boton "Enviando..."
+   * girando. El envio tarda ~20s reales contra C4C (medido en produccion),
+   * y con solo el boton deshabilitado el cliente cree que se colgo: vuelve
+   * a hacer clic o cierra la pestaña. Si cierra, el ticket igual se crea
+   * pero nunca ve su numero, y suele reenviar - duplicandolo. Por eso el
+   * texto insiste en no cerrar y anticipa el correo de confirmacion.
+   */
+  if (phase === "submitting") {
+    return (
+      <main className="page">
+        <HeroPanel />
+        <div className="card">
+        <div className="card__inner welcome-card">
+          <Spinner large />
+          <h1>Estamos registrando tu solicitud</h1>
+          <p>Esto puede tomar hasta un minuto. Te enviaremos la confirmación a {form.email.trim() || "tu correo"}.</p>
+          <p className="muted">
+            <strong>No cierres esta ventana</strong> — tu número de ticket aparecerá aquí.
+          </p>
+        </div>
+        </div>
+      </main>
+    );
+  }
+
   if (phase === "done" && result) {
     return (
       <main className="page">
@@ -1205,8 +1231,10 @@ export default function App() {
               <button type="button" className="btn-secondary" onClick={() => goToStep(3)}>
                 Anterior
               </button>
-              <button type="submit" className="btn-primary" disabled={phase === "submitting"}>
-                {phase === "submitting" ? "Enviando… esto puede tardar unos segundos" : "Enviar solicitud"}
+              {/* El estado "enviando" ya no vive aca: mientras dura el envio se
+                  muestra la pantalla de espera completa, que retorna antes. */}
+              <button type="submit" className="btn-primary">
+                Enviar solicitud
               </button>
             </div>
           </fieldset>

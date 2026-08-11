@@ -169,10 +169,15 @@ function buildHtml(input: TicketConfirmationInput): string {
   const bannerUrl = process.env.PUBLIC_BASE_URL
     ? `${process.env.PUBLIC_BASE_URL.replace(/\/$/, "")}/email-banner.png`
     : undefined;
+  // El banner ya trae el logo y la direccion web dentro de la imagen, asi que
+  // la fila de texto con la web solo se dibuja cuando NO hay banner (sin
+  // PUBLIC_BASE_URL, o si el cliente de correo bloquea imagenes remotas).
   const banner = bannerUrl
     ? `<tr><td style="padding:0"><img src="${escapeHtml(bannerUrl)}" width="600" alt="Grupo Sole - Asegura la vida util de tus equipos"
          style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>`
-    : "";
+    : `<tr><td style="padding:18px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${AZUL}" align="right">
+         Web: ${escapeHtml(SITIO_WEB)}
+       </td></tr>`;
 
   const ticketsFila =
     ticketIds.length === 1
@@ -193,9 +198,6 @@ function buildHtml(input: TicketConfirmationInput): string {
 <tr><td align="center">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff">
 
-  <tr><td style="padding:18px 24px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${AZUL}" align="right">
-    Web: ${escapeHtml(SITIO_WEB)}
-  </td></tr>
   ${banner}
 
   <tr><td align="center" style="padding:26px 24px 6px;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;color:#1a1a1a">

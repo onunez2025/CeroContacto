@@ -179,6 +179,20 @@ describe("sendTicketConfirmation", () => {
     expect(ok).toBe(true);
     expect(html).not.toContain("<img");
     expect(html).toContain("Hola, ALVARO");
+    // Sin banner, la web se muestra como texto (el banner ya la trae dentro).
+    expect(html).toContain("www.gruposole.com.pe");
+  });
+
+  it("no duplica la web como texto cuando el banner ya la trae en la imagen", async () => {
+    process.env.PUBLIC_BASE_URL = "https://ejemplo.test";
+    const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendTicketConfirmation({ submission, ticketIds: ["1401544"] }, fakeLog());
+
+    const html = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string).message.body.content;
+    expect(html).toContain("email-banner.png");
+    expect(html).not.toContain("www.gruposole.com.pe");
   });
 
   it("incluye el banner cuando hay PUBLIC_BASE_URL, sin barra doble", async () => {

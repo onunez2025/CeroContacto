@@ -32,7 +32,8 @@ export async function lookupEmpresa(numeroDocumento: string, client: IC4CODataCl
     found: true,
     datos: {
       ...(account.Name ? { razonSocial: account.Name } : {}),
-      telefono: account.Phone ?? "",
+      // Phone primero, Mobile como respaldo: ver la nota de Mobile en types.ts.
+      telefono: account.Phone?.trim() || account.Mobile?.trim() || "",
       email: account.Email ?? "",
       direccion: buildDireccion(addresses[0]),
     },

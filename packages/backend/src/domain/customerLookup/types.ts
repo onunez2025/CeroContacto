@@ -29,6 +29,14 @@ export interface IndividualCustomerLookupRecord {
   FirstName?: string;
   LastName?: string;
   Phone?: string;
+  /**
+   * Segunda linea telefonica. Se lee ademas de Phone porque en datos reales
+   * de produccion hay clientes con Phone vacio y el numero cargado solo aca
+   * (confirmado el 2026-08-11 en el cliente 1125569: Phone="" y
+   * Mobile="+51 960 560 064"), lo que dejaba el campo Telefono en blanco al
+   * autocompletar aunque C4C si tuviera el dato.
+   */
+  Mobile?: string;
   Email?: string;
 }
 
@@ -38,6 +46,8 @@ export interface CorporateAccountLookupRecord {
   AccountID: string;
   Name?: string;
   Phone?: string;
+  /** Ver la nota de Mobile en IndividualCustomerLookupRecord. */
+  Mobile?: string;
   Email?: string;
 }
 

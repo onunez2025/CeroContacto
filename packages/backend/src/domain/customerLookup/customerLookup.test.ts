@@ -88,6 +88,44 @@ describe("lookupIndividual", () => {
     const filterUrl = (getCollection.mock.calls[0] as [string])[0];
     expect(decodeURIComponent(filterUrl)).toContain("TaxTypeCode eq '5'");
   });
+
+  it("usa Mobile como telefono cuando Phone viene vacio", async () => {
+    // Caso real de produccion (cliente 1125569, 2026-08-11): Phone="" y el
+    // numero cargado solo en Mobile dejaba el campo Telefono en blanco.
+    const getCollection = vi
+      .fn()
+      .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", CustomerID: "1125569" }])
+      .mockResolvedValueOnce([{ ObjectID: "OBJ1", CustomerID: "1125569", Phone: "", Mobile: "+51 960 560 064" }])
+      .mockResolvedValueOnce([]);
+
+    const result = await lookupIndividual("DNI", "70333796", mockClient({ getCollection }));
+
+    expect(result.datos?.telefono).toBe("+51 960 560 064");
+  });
+
+  it("prefiere Phone sobre Mobile cuando ambos tienen valor", async () => {
+    const getCollection = vi
+      .fn()
+      .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", CustomerID: "1035063" }])
+      .mockResolvedValueOnce([{ ObjectID: "OBJ1", CustomerID: "1035063", Phone: "999111222", Mobile: "888333444" }])
+      .mockResolvedValueOnce([]);
+
+    const result = await lookupIndividual("DNI", "15619884", mockClient({ getCollection }));
+
+    expect(result.datos?.telefono).toBe("999111222");
+  });
+
+  it("devuelve telefono vacio si ni Phone ni Mobile tienen valor", async () => {
+    const getCollection = vi
+      .fn()
+      .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", CustomerID: "1035063" }])
+      .mockResolvedValueOnce([{ ObjectID: "OBJ1", CustomerID: "1035063", Phone: "  ", Mobile: "" }])
+      .mockResolvedValueOnce([]);
+
+    const result = await lookupIndividual("DNI", "15619884", mockClient({ getCollection }));
+
+    expect(result.datos?.telefono).toBe("");
+  });
 });
 
 describe("lookupEmpresa", () => {
@@ -113,6 +151,18 @@ describe("lookupEmpresa", () => {
     const result = await lookupEmpresa("20999999999", client);
 
     expect(result).toEqual({ found: false });
+  });
+
+  it("usa Mobile como telefono cuando Phone viene vacio", async () => {
+    const getCollection = vi
+      .fn()
+      .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", AccountID: "1038018" }])
+      .mockResolvedValueOnce([{ ObjectID: "OBJ1", AccountID: "1038018", Name: "EMPRESA S.A.C.", Phone: "", Mobile: "987654321" }])
+      .mockResolvedValueOnce([]);
+
+    const result = await lookupEmpresa("20525512348", mockClient({ getCollection }));
+
+    expect(result.datos?.telefono).toBe("987654321");
   });
 });
 

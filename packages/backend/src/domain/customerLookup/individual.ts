@@ -47,7 +47,8 @@ export async function lookupIndividual(
     datos: {
       ...(customer.FirstName ? { nombres: customer.FirstName } : {}),
       ...(customer.LastName ? { apellidos: customer.LastName } : {}),
-      telefono: customer.Phone ?? "",
+      // Phone primero, Mobile como respaldo: ver la nota de Mobile en types.ts.
+      telefono: customer.Phone?.trim() || customer.Mobile?.trim() || "",
       email: customer.Email ?? "",
       direccion: buildDireccion(addresses[0]),
     },

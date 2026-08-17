@@ -13,6 +13,7 @@ import {
   type PostalCodeMatch,
   type SubmitResult,
 } from "./api.js";
+import { AyudaAgregarProducto } from "./AyudaAgregarProducto.js";
 import { FieldError } from "./FieldError.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
 import { ProductoPicker } from "./ProductoPicker.js";
@@ -298,7 +299,6 @@ function sanitizeAlphanumeric(value: string, maxLen: number): string {
 }
 export default function App() {
   const [form, setForm] = useState<FormState>(loadStoredProgress);
-  const [showWelcome, setShowWelcome] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>("editing");
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -679,22 +679,6 @@ export default function App() {
       setSubmitError(err instanceof ApiError ? err.message : "No pudimos conectarnos con el servidor.");
     }
   }
-  if (showWelcome) {
-    return (
-      <main className="page">
-        <HeroPanel />
-        <div className="card">
-        <div className="card__inner welcome-card">
-          <h1>¡Hola! Bienvenido a Cero Contacto</h1>
-          <p>Programa la instalación de tu producto en 4 pasos rápidos.</p>
-          <button type="button" className="btn-primary" onClick={() => setShowWelcome(false)}>
-            Comenzar
-          </button>
-        </div>
-        </div>
-      </main>
-    );
-  }
   /**
    * Pantalla de espera dedicada, en vez de dejar el boton "Enviando..."
    * girando. El envio tarda ~20s reales contra C4C (medido en produccion),
@@ -816,6 +800,10 @@ export default function App() {
       <HeroPanel />
       <div className="card">
       <div className="card__inner">
+        {/* La pantalla de bienvenida con el boton "Comenzar" se elimino
+            (observacion 9): era un paso extra que no aportaba nada y retrasaba
+            el formulario. El saludo se conserva sobre el titulo. */}
+        <p className="form-saludo">¡Hola!</p>
         <h1 className="form-title">Programa tu instalación</h1>
         <StepHeader current={step} onSelect={goToStep} />
         <form onSubmit={handleSubmit} noValidate>
@@ -1140,6 +1128,7 @@ export default function App() {
             <p className="hint">
               Agrega cada producto que deseas instalar. Si compraste varios productos, regístralos uno por uno.
             </p>
+            <AyudaAgregarProducto maxProductos={MAX_PRODUCTOS} whatsappUrl={WHATSAPP_URL} />
             {form.productos.map((producto, index) => (
               <div className="producto-row" key={index}>
                 <p className="producto-label">{index === 0 ? "Producto principal" : `Producto adicional ${index}`}</p>

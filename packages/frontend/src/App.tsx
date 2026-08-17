@@ -15,8 +15,8 @@ import {
 } from "./api.js";
 import { AyudaAgregarProducto } from "./AyudaAgregarProducto.js";
 import { FieldError } from "./FieldError.js";
-import { LUGARES_COMPRA } from "./lugaresCompra.js";
-import { acomodarParaDesplegable, convieneAbrirHaciaArriba } from "./mobileScroll.js";
+import { LugarCompraPicker } from "./LugarCompraPicker.js";
+import { acomodarParaDesplegable, convieneAbrirHaciaArriba, soltarEspacioDesplegable } from "./mobileScroll.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 import { Spinner } from "./Spinner.js";
@@ -622,6 +622,7 @@ export default function App() {
     setPostalResults([]);
     setPostalHasMore(false);
     setPostalOpen(false);
+    soltarEspacioDesplegable();
   }
   function handlePostalInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (!postalOpen || postalResults.length === 0) return;
@@ -932,18 +933,11 @@ export default function App() {
               />
               <FieldError message={fieldErrors.email} />
             </div>
-            <div className="field">
-              <label htmlFor="lugarCompra">¿Dónde compraste tus productos?</label>
-              <select id="lugarCompra" value={form.lugarCompra} onChange={(e) => update("lugarCompra", e.target.value)}>
-                <option value="">Selecciona una tienda</option>
-                {LUGARES_COMPRA.map((nombre) => (
-                  <option key={nombre} value={nombre}>
-                    {nombre}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={fieldErrors.lugarCompra} />
-            </div>
+            <LugarCompraPicker
+              value={form.lugarCompra}
+              onChange={(lugar) => update("lugarCompra", lugar)}
+              error={fieldErrors.lugarCompra}
+            />
             <div className="step-actions">
               <button
                 type="button"
@@ -1052,12 +1046,15 @@ export default function App() {
                         disabled={!form.departamento || (coverageStatus !== "covered" && coverageStatus !== "error")}
                         value={postalQuery}
                         onChange={(e) => handlePostalQueryChange(e.target.value)}
-                        onFocus={(e) => {
+                        onFocus={() => {
                           // Sube el campo antes de que el teclado tape los resultados.
-                          acomodarParaDesplegable(e.currentTarget);
+                          acomodarParaDesplegable(postalInputRef.current);
                           if (postalResults.length > 0) abrirListaPostal();
                         }}
-                        onBlur={() => setTimeout(() => setPostalOpen(false), 150)}
+                        onBlur={() => {
+                          soltarEspacioDesplegable();
+                          setTimeout(() => setPostalOpen(false), 150);
+                        }}
                         onKeyDown={handlePostalInputKeyDown}
                         role="combobox"
                         aria-expanded={postalOpen}

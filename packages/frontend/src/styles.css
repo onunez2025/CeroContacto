@@ -670,6 +670,18 @@ select:disabled {
  * distrito y los resultados quedaban integramente ocultos tras el teclado
  * (medido en produccion: 0 opciones visibles).
  */
+/**
+ * Espacio extra al final mientras hay un desplegable abierto en celular.
+ * Permite subir el campo aunque sea el ultimo de su paso; sin esto la pagina
+ * llega a su tope y el campo queda bajo el teclado. Desaparece al cerrar, asi
+ * que el usuario nunca ve el hueco.
+ */
+@media (max-width: 768px) {
+  body.desplegable-abierto .card__inner {
+    padding-bottom: 100vh;
+  }
+}
+
 .autocomplete.abre-arriba .autocomplete-list {
   top: auto;
   bottom: calc(100% + 4px);

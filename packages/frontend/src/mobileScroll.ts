@@ -27,8 +27,21 @@ const ESPERA_TECLADO_MS = 300;
  * No hace nada en escritorio, donde no hay teclado que tape y mover la
  * pagina sola seria desconcertante.
  */
+/**
+ * Clase que agrega espacio extra al final del formulario. Sin ella, un campo
+ * que esta al FINAL de su paso no se puede subir: la pagina ya llego a su
+ * tope de scroll y no hay contenido debajo que desplazar. Es exactamente el
+ * caso del buscador de tienda, ultimo campo del paso 1 - medido: le faltaban
+ * 576px de recorrido y quedaba clavado bajo el teclado.
+ */
+const CLASE_ESPACIO = "desplegable-abierto";
+
 export function acomodarParaDesplegable(campo: HTMLElement | null): void {
   if (!campo || window.innerWidth > ANCHO_MAXIMO_CELULAR) return;
+
+  // El espacio se agrega ANTES de desplazar; si no, el scroll se topa con el
+  // final del documento y se queda a medio camino.
+  document.body.classList.add(CLASE_ESPACIO);
 
   window.setTimeout(() => {
     const rect = campo.getBoundingClientRect();
@@ -37,6 +50,11 @@ export function acomodarParaDesplegable(campo: HTMLElement | null): void {
     if (Math.abs(desplazamiento) < 8) return;
     window.scrollBy({ top: desplazamiento, behavior: "smooth" });
   }, ESPERA_TECLADO_MS);
+}
+
+/** Devuelve el formulario a su alto normal al cerrarse el desplegable. */
+export function soltarEspacioDesplegable(): void {
+  document.body.classList.remove(CLASE_ESPACIO);
 }
 
 /** Alto maximo de la lista (max-height de .autocomplete-list) mas un respiro. */

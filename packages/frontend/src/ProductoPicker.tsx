@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
-import { acomodarParaDesplegable, convieneAbrirHaciaArriba } from "./mobileScroll.js";
+import { acomodarParaDesplegable, convieneAbrirHaciaArriba, soltarEspacioDesplegable } from "./mobileScroll.js";
 import { resizeImageToDataUrl } from "./imageResize.js";
 import { PRODUCT_CATEGORIES } from "./productCategories.js";
 import { Spinner } from "./Spinner.js";
@@ -118,6 +118,7 @@ export function ProductoPicker({
     setQuery(formatProductLabel(item.codigo, item.nombre));
     setResults([]);
     setOpen(false);
+    soltarEspacioDesplegable();
   }
 
   function handleInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -196,12 +197,15 @@ export function ProductoPicker({
             disabled={!categoria}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            onFocus={(e) => {
+            onFocus={() => {
               // Sube el campo antes de que el teclado tape la lista de modelos.
-              acomodarParaDesplegable(e.currentTarget);
+              acomodarParaDesplegable(inputRef.current);
               if (results.length > 0) abrirLista();
             }}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onBlur={() => {
+              soltarEspacioDesplegable();
+              setTimeout(() => setOpen(false), 150);
+            }}
             onKeyDown={handleInputKeyDown}
             role="combobox"
             aria-expanded={open}

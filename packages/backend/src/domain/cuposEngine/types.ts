@@ -69,6 +69,13 @@ export interface RegionRoot {
   zRegid?: string;
 }
 
+/** RegionRoot con los tres campos ya confirmados como presentes. */
+export interface RegionMeta {
+  cabRegion: string;
+  regionFsm: string;
+  regionFsmId: string;
+}
+
 export interface CuposEmpresaRoot {
   ObjectID: string;
   zCupIdEmpresa: string;
@@ -86,6 +93,13 @@ export interface CuposEmpresaCuposGrupoMaterial {
 }
 
 export interface CuposEmpresaCuposEmpresaFecha {
+  /**
+   * Region que ESTA empresa atiende ("SOLE-CALLAO", "FAZZIO-CALLAO", ...).
+   * Un mismo departamento tiene varias, una por contratista, y hay que
+   * cruzarla contra las regiones del codigo postal del cliente - ver
+   * getRegionMetas.
+   */
+  zCupFechRegin?: string;
   zCupFechLunes: boolean;
   zCupFechMartes: boolean;
   zCupFechMircoles: boolean;

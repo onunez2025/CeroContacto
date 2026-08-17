@@ -83,11 +83,11 @@ describe("assignCupo", () => {
       // Candidata A (mayor prioridad) no tiene el tipo de servicio habilitado.
       if (path.includes("OBJ-A") && path.includes("CuposTipoServicio")) return [];
       if (path.includes("OBJ-A") && path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       // Candidata B pasa todo.
       if (path.includes("OBJ-B") && path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
       if (path.includes("OBJ-B") && path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CupoPorAreaRootCollection")) return [{ zCantidadDisponible: 3, zIdRegistro: "REG-B" }];
       return [];
     });
@@ -104,6 +104,40 @@ describe("assignCupo", () => {
     });
   });
 
+  /**
+   * Contraparte de la observacion 20 en la creacion del ticket: con varias
+   * regiones por codigo postal, Z_CabRegion_KUT tiene que ser la region con
+   * la que atiende LA EMPRESA ASIGNADA, no la primera que devuelva C4C para
+   * ese codigo postal - si no, el ticket queda con la region de otro
+   * contratista.
+   */
+  it("devuelve la region de la empresa asignada, no la primera del codigo postal", async () => {
+    const regionSinEmpresa = { zRegRegin: "EMSS-CALLAO", zRegcode: "CALLAO_EMSS", zRegid: "EMSS1" };
+    const regionConEmpresa = { zRegRegin: "SOLE-CALLAO", zRegcode: "CALLAO_SOLE", zRegid: "SOLE1" };
+
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
+      if (path.includes("BO_RegionRootCollection")) return [regionSinEmpresa, regionConEmpresa];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
+      if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: "SOLE-CALLAO", zCupFechLunes: true }];
+      if (path.includes("BO_CupoPorAreaRootCollection")) return [{ zCantidadDisponible: 5, zIdRegistro: "REG-A" }];
+      return [];
+    });
+
+    const result = await assignCupo(baseInput, client);
+
+    expect(result).toEqual({
+      ok: true,
+      companyId: candidateA.zCupIdEmpresa,
+      reservationId: "REG-A",
+      cabRegion: "SOLE-CALLAO",
+      regionFsm: "CALLAO_SOLE",
+      regionFsmId: "SOLE1",
+    });
+  });
+
   it("falla con NO_CAPACITY si ninguna candidata tiene cupo disponible para la fecha", async () => {
     const client = clientFromRouter(async (path) => {
       if (path.includes("MaterialSalesProcessInformationCollection")) return [{ ProductGroup2: "M74" }];
@@ -111,7 +145,7 @@ describe("assignCupo", () => {
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
       if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
       if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CupoPorAreaRootCollection")) return [{ zCantidadDisponible: 0, zIdRegistro: "REG-A" }];
       return [];
     });
@@ -127,7 +161,7 @@ describe("assignCupo", () => {
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
       if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
       if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CupoPorAreaRootCollection")) return [{ zCantidadDisponible: 5, zIdRegistro: "REG-A" }];
       return [];
     });
@@ -159,11 +193,11 @@ describe("assignCupo", () => {
       // Candidata A solo esta habilitada para M74 (cocina), no para M75 (horno) - debe descartarse.
       if (path.includes("OBJ-A") && path.includes("CuposGrupoMaterial") && path.includes("M74")) return [{ zCupIdGrupoMaterial: "M74" }];
       if (path.includes("OBJ-A") && path.includes("CuposGrupoMaterial") && path.includes("M75")) return [];
-      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       // Candidata B esta habilitada para ambos grupos.
       if (path.includes("OBJ-B") && path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
       if (path.includes("OBJ-B") && path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CupoPorAreaRootCollection")) return [{ zCantidadDisponible: 3, zIdRegistro: "REG-B" }];
       return [];
     });
@@ -187,7 +221,7 @@ describe("assignCupo", () => {
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
       if (path.includes("CuposTipoServicio")) return [{ zIDTipoServicio: "CA_1" }];
       if (path.includes("CuposGrupoMaterial")) return [{ zCupIdGrupoMaterial: "M74" }];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: false }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: false }];
       return [];
     });
 
@@ -224,7 +258,7 @@ describe("getFechasDisponibles", () => {
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
       // Candidata trabaja lunes y miercoles, no martes.
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true, zCupFechMircoles: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true, zCupFechMircoles: true }];
       if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
           { zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }, // lunes, con cupo
@@ -239,13 +273,58 @@ describe("getFechasDisponibles", () => {
     expect(result).toEqual(["2026-08-03", "2026-08-05"]);
   });
 
+  /**
+   * Regresion de la observacion 20 (Callao): un codigo postal pertenece a
+   * VARIAS regiones, una por contratista que cubre esa zona. Antes se tomaba
+   * `results[0]` de regionxdepartamento y todo el motor quedaba atado a esa
+   * region; los 6 codigos postales de Ventanilla tienen "EMSS-CALLAO" de
+   * primera y ninguna empresa tiene dias habilitados para ella, asi que el
+   * calendario salia vacio aunque SOLE-CALLAO si tiene contratista con dias
+   * y cupos para las mismas zonas.
+   */
+  it("usa TODAS las regiones del codigo postal, no solo la primera que devuelve C4C", async () => {
+    const regionSinEmpresa = { zRegRegin: "EMSS-CALLAO", zRegcode: "CALLAO_EMSS", zRegid: "EMSS1" };
+    const regionConEmpresa = { zRegRegin: "SOLE-CALLAO", zRegcode: "CALLAO_SOLE", zRegid: "SOLE1" };
+
+    const client = clientFromRouter(async (path) => {
+      // El orden importa: la region sin empresa va primera, como en produccion.
+      if (path.includes("BO_RegionRootCollection")) return [regionSinEmpresa, regionConEmpresa];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      // La empresa atiende la zona por SOLE-CALLAO, no por EMSS-CALLAO.
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: "SOLE-CALLAO", zCupFechLunes: true }];
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
+        return [{ zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 40 }];
+      }
+      return [];
+    });
+
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual(["2026-08-03"]);
+  });
+
+  it("ignora los dias de una region que NO cubre el codigo postal del cliente", async () => {
+    const client = clientFromRouter(async (path) => {
+      if (path.includes("BO_RegionRootCollection")) return [region];
+      if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
+      // La empresa trabaja los lunes, pero en OTRA region (otra zona geografica).
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: "OTRA-REGION", zCupFechLunes: true }];
+      if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
+        return [{ zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 40 }];
+      }
+      return [];
+    });
+
+    const result = await getFechasDisponibles(baseFechasInput, client);
+    expect(result).toEqual([]);
+  });
+
   it("interpreta correctamente zFecha en formato JSON verbose de OData v2 (/Date(ms)/)", async () => {
     // Confirmado en vivo contra C4C produccion: el JSON que devuelve C4C serializa
     // zFecha como "/Date(<ms-epoch>)/", no como texto ISO.
     const client = clientFromRouter(async (path) => {
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
           // 2026-08-03T00:00:00Z en formato "/Date(ms-epoch)/" (lunes, con cupo).
@@ -264,7 +343,7 @@ describe("getFechasDisponibles", () => {
     const client = clientFromRouter(async (path) => {
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         capturedPath = path;
         return [];
@@ -281,7 +360,7 @@ describe("getFechasDisponibles", () => {
     const client = clientFromRouter(async (path) => {
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true, zCupFechMircoles: true }];
+      if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true, zCupFechMircoles: true }];
       if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         capturedPath = path;
         return [
@@ -303,8 +382,8 @@ describe("getFechasDisponibles", () => {
     const client = clientFromRouter(async (path) => {
       if (path.includes("BO_RegionRootCollection")) return [region];
       if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA, candidateB];
-      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
-      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+      if (path.includes("OBJ-A") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
+      if (path.includes("OBJ-B") && path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
       if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
         return [
           { zIdEmpresa: candidateB.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }, // lunes de B
@@ -330,7 +409,7 @@ describe("getFechasDisponibles", () => {
       return clientFromRouter(async (path) => {
         if (path.includes("BO_RegionRootCollection")) return [region];
         if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
-        if (path.includes("CuposEmpresaFecha")) return [{ zCupFechLunes: true }];
+        if (path.includes("CuposEmpresaFecha")) return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
         if (path.includes("BO_CuposPorEmpresaPorFechaRootCollection")) {
           return [{ zIdEmpresa: candidateA.zCupIdEmpresa, zFecha: "2026-08-03T00:00:00", zCantidadReal: 15 }];
         }
@@ -379,7 +458,7 @@ describe("getFechasDisponibles", () => {
         if (path.includes("BO_CuposEmpresaRootCollection") && !path.includes("(")) return [candidateA];
         if (path.includes("CuposEmpresaFecha")) {
           if (shouldFail) throw new Error("c4c down");
-          return [{ zCupFechLunes: true }];
+          return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
         }
         return [];
       });
@@ -416,7 +495,7 @@ describe("getFechasDisponibles", () => {
           maxInFlight = Math.max(maxInFlight, inFlight);
           await new Promise((resolve) => setTimeout(resolve, 5));
           inFlight--;
-          return [{ zCupFechLunes: true }];
+          return [{ zCupFechRegin: region.zRegRegin, zCupFechLunes: true }];
         }
         return [];
       });

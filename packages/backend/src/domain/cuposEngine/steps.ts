@@ -9,6 +9,7 @@ import type {
   CuposEmpresaCuposTipoServicio,
   CuposEmpresaRoot,
   MaterialSalesProcessInformation,
+  RegionMeta,
   RegionRoot,
 } from "./types.js";
 
@@ -22,12 +23,39 @@ export async function getProductGroup(productId: string, client: IC4CODataClient
   return results[0]?.ProductGroup2;
 }
 
-export async function getRegionMeta(postalCode: string, client: IC4CODataClient): Promise<RegionRoot | undefined> {
+/**
+ * TODAS las regiones de servicio activas que cubren un codigo postal.
+ *
+ * Un codigo postal NO pertenece a una sola region: en Callao y Lima, varias
+ * empresas cubren la misma zona, cada una con su propia region
+ * ("SOLE-CALLAO", "FAZZIO-CALLAO", "EMSS-CALLAO"...). Antes esta funcion
+ * devolvia `results[0]` - una sola, la primera que devolviera C4C, sin
+ * ningun criterio - y todo el motor quedaba atado a esa.
+ *
+ * Eso rompia zonas reales: los 6 codigos postales de Ventanilla tienen
+ * "EMSS-CALLAO" como primer registro, y NINGUNA empresa tiene dias
+ * habilitados para esa region, asi que el calendario salia vacio aunque las
+ * mismas zonas tambien pertenecen a SOLE-CALLAO/SILAR-CALLAO/FAZZIO-CALLAO,
+ * que si tienen contratista con dias y cupos. Confirmado en vivo contra
+ * produccion el 2026-08-17: 6 de los 16 codigos postales de Callao y 6 de
+ * Lima pasaban de 0 a 39 fechas disponibles con este cambio, y los que ya
+ * funcionaban no cambiaron (observacion 20 del usuario).
+ */
+export async function getRegionMetas(postalCode: string, client: IC4CODataClient): Promise<RegionMeta[]> {
   const filter = and(eq("zPostalCodigo", postalCode), eqBool("zRegactivo", true));
   const results = await client.getCollection<RegionRoot>(
     `${CUST_NS}/regionxdepartamento/BO_RegionRootCollection?$filter=${encodeURIComponent(filter)}`,
   );
-  return results[0];
+
+  const vistas = new Set<string>();
+  const metas: RegionMeta[] = [];
+  for (const r of results) {
+    if (!r.zRegRegin || !r.zRegcode || !r.zRegid) continue;
+    if (vistas.has(r.zRegRegin)) continue;
+    vistas.add(r.zRegRegin);
+    metas.push({ cabRegion: r.zRegRegin, regionFsm: r.zRegcode, regionFsmId: r.zRegid });
+  }
+  return metas;
 }
 
 /** Candidatas ordenadas por prioridad descendente, tal como hace el Postman del proveedor. */
@@ -98,21 +126,36 @@ export function addDaysIso(isoDate: string, days: number): string {
 }
 
 /**
- * Trae el registro completo de dias habilitados (los 7 flags) para una
- * candidata+region, sin evaluar ningun dia en particular - permite
- * reusar el mismo registro para varias fechas sin volver a consultar C4C.
+ * Trae los registros de dias habilitados (los 7 flags) de una candidata en
+ * un departamento, para TODAS las regiones que esa empresa atienda ahi, sin
+ * evaluar ningun dia en particular - permite reusar los mismos registros
+ * para varias fechas sin volver a consultar C4C.
+ *
+ * La region NO se filtra en el $filter de OData a proposito: un codigo
+ * postal puede pertenecer a varias regiones (ver getRegionMetas) y filtrar
+ * por una sola en C4C obligaria a una consulta por cada combinacion
+ * empresa x region (11 x 6 = 66 en Callao). El registro por empresa es
+ * diminuto - 1 fila en Callao, medido en vivo - asi que se trae completo y
+ * se cruza en memoria con `regionesDelCliente`.
  */
 export async function getDiasHabilitados(
   objectId: string,
   regionCode: string,
-  cabRegion: string,
+  regionesDelCliente: Set<string>,
   client: IC4CODataClient,
-): Promise<CuposEmpresaCuposEmpresaFecha | undefined> {
-  const filter = and(eq("zCupFechDepartamento", regionCode), eq("zCupFechRegin", cabRegion));
+): Promise<CuposEmpresaCuposEmpresaFecha[]> {
+  const filter = eq("zCupFechDepartamento", regionCode);
   const results = await client.getCollection<CuposEmpresaCuposEmpresaFecha>(
     `${CUST_NS}/cupos_empresa/BO_CuposEmpresaRootCollection('${objectId}')/BO_CuposEmpresaCuposEmpresaFecha?$filter=${encodeURIComponent(filter)}`,
   );
-  return results[0];
+  return results.filter((r) => r.zCupFechRegin !== undefined && regionesDelCliente.has(r.zCupFechRegin));
+}
+
+/** true si alguno de los registros habilita ese dia de la semana. */
+export function habilitaDia(registros: CuposEmpresaCuposEmpresaFecha[], fecha: string): boolean {
+  const field = DAY_FIELDS[dayOfWeekIndex(fecha)];
+  if (field === undefined) return false;
+  return registros.some((r) => r[field] === true);
 }
 
 /**
@@ -122,19 +165,32 @@ export async function getDiasHabilitados(
  * pero el chequeo tiene sentido de negocio como "el contratista trabaja
  * ese dia de la semana", que solo aplica al dia de la visita. Confirmar
  * con el proveedor (pregunta E de la seccion de motor de cupos).
+ *
+ * Devuelve la region concreta con la que la empresa atiende esa direccion
+ * ese dia (no un booleano): es la que debe viajar al ticket como
+ * Z_CabRegion_KUT, y con varias regiones por codigo postal ya no se puede
+ * asumir cual fue.
  */
-export async function isDiaHabilitado(
+export async function regionQueAtiendeElDia(
   objectId: string,
   regionCode: string,
-  cabRegion: string,
+  regionesDelCliente: RegionMeta[],
   fechaVisita: string,
   client: IC4CODataClient,
-): Promise<boolean> {
-  const record = await getDiasHabilitados(objectId, regionCode, cabRegion, client);
-  if (!record) return false;
-
+): Promise<RegionMeta | undefined> {
   const field = DAY_FIELDS[dayOfWeekIndex(fechaVisita)];
-  return field !== undefined && record[field] === true;
+  if (field === undefined) return undefined;
+
+  const registros = await getDiasHabilitados(
+    objectId,
+    regionCode,
+    new Set(regionesDelCliente.map((r) => r.cabRegion)),
+    client,
+  );
+  const habilitado = registros.find((r) => r[field] === true);
+  if (!habilitado) return undefined;
+
+  return regionesDelCliente.find((r) => r.cabRegion === habilitado.zCupFechRegin);
 }
 
 /**

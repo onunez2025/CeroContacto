@@ -3,15 +3,14 @@ import {
   addDaysIso,
   checkCapacidad,
   checkCapacidadRango,
-  DAY_FIELDS,
-  dayOfWeekIndex,
   getCandidateCompanies,
   getDiasHabilitados,
   getProductGroup,
-  getRegionMeta,
-  isDiaHabilitado,
+  getRegionMetas,
+  habilitaDia,
   isGrupoMaterialHabilitado,
   isTipoServicioHabilitado,
+  regionQueAtiendeElDia,
 } from "./steps.js";
 import type { CuposEngineInput, CuposEngineResult, FechasDisponiblesInput } from "./types.js";
 
@@ -64,15 +63,16 @@ export async function assignCupo(input: CuposEngineInput, client: IC4CODataClien
   }
   const distinctGroups = [...productGroups];
 
-  const region = await getRegionMeta(input.postalCode, client);
-  if (!region?.zRegRegin || !region.zRegcode || !region.zRegid) {
+  // Todas las regiones que cubren este codigo postal, no una sola: ver la
+  // nota de getRegionMetas (observacion 20 - Callao).
+  const regiones = await getRegionMetas(input.postalCode, client);
+  if (regiones.length === 0) {
     return {
       ok: false,
       reason: "NO_REGION_MATCH",
       detail: `No se encontro region activa para el codigo postal ${input.postalCode}`,
     };
   }
-  const { zRegRegin: cabRegion, zRegcode: regionFsm, zRegid: regionFsmId } = region;
 
   const candidates = await getCandidateCompanies(input.regionCode, client);
   if (candidates.length === 0) {
@@ -84,25 +84,28 @@ export async function assignCupo(input: CuposEngineInput, client: IC4CODataClien
   }
 
   for (const candidate of candidates) {
-    const [tipoServicioOk, grupoMaterialChecks, diaHabilitadoOk] = await Promise.all([
+    const [tipoServicioOk, grupoMaterialChecks, regionDelCandidato] = await Promise.all([
       isTipoServicioHabilitado(candidate.ObjectID, client),
       Promise.all(distinctGroups.map((group) => isGrupoMaterialHabilitado(candidate.ObjectID, group, client))),
-      isDiaHabilitado(candidate.ObjectID, input.regionCode, cabRegion, input.fechaVisita, client),
+      regionQueAtiendeElDia(candidate.ObjectID, input.regionCode, regiones, input.fechaVisita, client),
     ]);
     const grupoMaterialOk = grupoMaterialChecks.every(Boolean);
 
-    if (!tipoServicioOk || !grupoMaterialOk || !diaHabilitadoOk) continue;
+    if (!tipoServicioOk || !grupoMaterialOk || !regionDelCandidato) continue;
 
     const cupo = await checkCapacidad(input.regionCode, candidate.zCupIdEmpresa, input.fechaVisita, client);
     if (!cupo) continue;
 
+    // La region que viaja al ticket es la de ESTA empresa, no la primera que
+    // devolviera C4C para el codigo postal: son contratistas distintos
+    // cubriendo la misma zona.
     return {
       ok: true,
       companyId: candidate.zCupIdEmpresa,
       reservationId: cupo.zIdRegistro,
-      cabRegion,
-      regionFsm,
-      regionFsmId,
+      cabRegion: regionDelCandidato.cabRegion,
+      regionFsm: regionDelCandidato.regionFsm,
+      regionFsmId: regionDelCandidato.regionFsmId,
     };
   }
 
@@ -163,9 +166,12 @@ async function mapWithConcurrencyLimit<T, R>(items: T[], limit: number, fn: (ite
 }
 
 async function computeFechasDisponibles(input: FechasDisponiblesInput, client: IC4CODataClient): Promise<string[]> {
-  const region = await getRegionMeta(input.postalCode, client);
-  if (!region?.zRegRegin) return [];
-  const cabRegion = region.zRegRegin;
+  // TODAS las regiones que cubren este codigo postal. Quedarse con una sola
+  // (lo que se hacia antes) dejaba el calendario vacio en zonas cubiertas
+  // por varios contratistas - ver getRegionMetas (observacion 20, Callao).
+  const regiones = await getRegionMetas(input.postalCode, client);
+  if (regiones.length === 0) return [];
+  const cabRegiones = new Set(regiones.map((r) => r.cabRegion));
 
   const candidates = await getCandidateCompanies(input.regionCode, client);
   if (candidates.length === 0) return [];
@@ -177,7 +183,7 @@ async function computeFechasDisponibles(input: FechasDisponiblesInput, client: I
   // concurrentes multipliquen ese fan-out sin control).
   const elegibles = await mapWithConcurrencyLimit(candidates, CANDIDATOS_CONCURRENCIA_MAXIMA, async (candidate) => ({
     zCupIdEmpresa: candidate.zCupIdEmpresa,
-    dias: await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegion, client),
+    dias: await getDiasHabilitados(candidate.ObjectID, input.regionCode, cabRegiones, client),
   }));
 
   const cupos = await checkCapacidadRango(
@@ -195,9 +201,10 @@ async function computeFechasDisponibles(input: FechasDisponiblesInput, client: I
 
   const fechasDisponibles: string[] = [];
   for (let cursor = input.desde; cursor <= input.hasta; cursor = addDaysIso(cursor, 1)) {
-    const weekday = DAY_FIELDS[dayOfWeekIndex(cursor)];
     const calificaAlguna = elegibles.some((empresa) => {
-      if (!empresa.dias || weekday === undefined || empresa.dias[weekday] !== true) return false;
+      // Basta con que UNA de las regiones con que esta empresa cubre la zona
+      // habilite ese dia de la semana.
+      if (!habilitaDia(empresa.dias, cursor)) return false;
       return fechasPorEmpresa.get(empresa.zCupIdEmpresa)?.has(cursor) ?? false;
     });
     if (calificaAlguna) fechasDisponibles.push(cursor);

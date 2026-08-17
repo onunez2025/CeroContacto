@@ -1,5 +1,6 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { and, eq } from "@cerocontacto/c4c-client";
+import { syncContactFields } from "./contactSync.js";
 import {
   INDIVIDUAL_TAX_TYPE_CODE,
   type CustomerResolutionResult,
@@ -41,6 +42,9 @@ export async function resolveIndividual(
  * solicitud, se les agrega la direccion recien ingresada por el cliente -
  * mismo POST de IndividualCustomerAddress que usa createIndividual para un
  * cliente nuevo.
+ *
+ * Ademas de la direccion, se sincronizan nombre/telefono/correo si el
+ * cliente los corrigio en el formulario (observacion 21 del usuario).
  */
 async function resolveExistingIndividual(
   taxMatch: IndividualCustomerTaxNumber,
@@ -52,6 +56,26 @@ async function resolveExistingIndividual(
     `${NS}/IndividualCustomerCollection?$filter=${encodeURIComponent(filter)}`,
   );
   const customer = customers[0];
+
+  await syncContactFields(
+    `${NS}/IndividualCustomerCollection('${taxMatch.ParentObjectID}')`,
+    {
+      FirstName: customer?.FirstName ?? "",
+      LastName: customer?.LastName ?? "",
+      Phone: customer?.Phone ?? "",
+      Mobile: customer?.Mobile ?? "",
+      Email: customer?.Email ?? "",
+    },
+    {
+      FirstName: input.nombres,
+      LastName: input.apellidos,
+      Phone: input.telefono,
+      Mobile: input.telefono2 ?? "",
+      Email: input.email,
+    },
+    client,
+  );
+
   if (customer?.StateCode && customer?.StreetPostalCode) {
     return {
       clientKind: "individual",

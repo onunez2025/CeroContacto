@@ -4,6 +4,7 @@ import { resolveIndividual } from "./individual.js";
 import type { CustomerResolutionInput, CustomerResolutionResult } from "./types.js";
 
 export * from "./types.js";
+export * from "./contactSync.js";
 
 export async function resolveCustomer(
   input: CustomerResolutionInput,

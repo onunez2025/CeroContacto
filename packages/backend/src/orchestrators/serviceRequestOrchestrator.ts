@@ -38,6 +38,25 @@ const MEDIO_CONTACTO_LABELS: Record<ServiceRequestSubmission["medioContacto"], s
 };
 
 /**
+ * Datos de contacto tal como los dejo el cliente en ESTA solicitud.
+ *
+ * El ticket ya apunta al cliente por BuyerPartyID, asi que la correccion
+ * que customerResolution escribe en el maestro (nombre/telefono/correo) se
+ * ve reflejada al abrir el ticket. Pero el ServiceRequest no guarda copia
+ * propia de esos campos, y el asesor que atiende no tiene forma de saber
+ * con que datos se registro esta solicitud en particular - por eso van
+ * tambien en el texto del ticket (observacion 21 del usuario).
+ */
+function buildDatosContacto(submission: ServiceRequestSubmission): string {
+  const nombre =
+    submission.tipoDocumento === "RUC"
+      ? submission.razonSocial
+      : `${submission.nombres} ${submission.apellidos}`;
+  const telefonos = [submission.telefono, submission.telefono2].filter(Boolean).join(" / ");
+  return [`Contacto: ${nombre.trim()}`, `Telefono: ${telefonos}`, `Correo: ${submission.email}`].join("\n");
+}
+
+/**
  * "Medio de contacto preferido" y "Lugar de compra" todavia no tienen un
  * mapeo confirmado/accesible en C4C (zIDLugarCompra_SDK existe pero
  * _SYSODATA no tiene permiso de lectura sobre el BO "lugardecompra" que
@@ -48,7 +67,9 @@ const MEDIO_CONTACTO_LABELS: Record<ServiceRequestSubmission["medioContacto"], s
 function buildComentarioParaC4C(submission: ServiceRequestSubmission): string {
   const medio = `Medio de contacto preferido: ${MEDIO_CONTACTO_LABELS[submission.medioContacto]}`;
   const lugarCompra = `Lugar de compra: ${submission.lugarCompra}`;
-  return [submission.comentario?.trim(), medio, lugarCompra].filter(Boolean).join("\n\n");
+  return [submission.comentario?.trim(), buildDatosContacto(submission), medio, lugarCompra]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**

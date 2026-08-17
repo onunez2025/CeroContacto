@@ -65,6 +65,11 @@ export interface CorporateAccount {
   AccountID: string;
   StateCode?: string;
   StreetPostalCode?: string;
+  /** Datos de contacto actuales, para detectar que cambio el cliente (ver contactSync). */
+  Name?: string;
+  Phone?: string;
+  Mobile?: string;
+  Email?: string;
 }
 
 export interface IndividualCustomerTaxNumber {
@@ -77,4 +82,10 @@ export interface IndividualCustomer {
   CustomerID: string;
   StateCode?: string;
   StreetPostalCode?: string;
+  /** Datos de contacto actuales, para detectar que cambio el cliente (ver contactSync). */
+  FirstName?: string;
+  LastName?: string;
+  Phone?: string;
+  Mobile?: string;
+  Email?: string;
 }

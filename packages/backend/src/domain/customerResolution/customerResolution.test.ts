@@ -55,6 +55,35 @@ describe("resolveCustomer - Empresa (RUC)", () => {
     expect(client.postEntity).not.toHaveBeenCalled();
   });
 
+  it("cuenta existente: actualiza en C4C la razon social/telefono/correo que cambiaron", async () => {
+    const patch = vi.fn();
+    const client = mockClient({
+      patch,
+      getCollection: vi
+        .fn()
+        .mockResolvedValueOnce([{ ParentObjectID: "OBJ1", AccountID: "1038018" }])
+        .mockResolvedValueOnce([
+          {
+            ObjectID: "OBJ1",
+            AccountID: "1038018",
+            StateCode: "15",
+            StreetPostalCode: "07001",
+            Name: "SERVICIOS MEDICOS M'VAPE S.A.C.",
+            Phone: "+51900000000",
+            Mobile: "+51987654321",
+            Email: "empresa@example.com",
+          },
+        ]),
+    });
+
+    await resolveCustomer(input, client);
+
+    expect(patch).toHaveBeenCalledTimes(1);
+    const [patchPath, patchBody] = patch.mock.calls[0] as [string, Record<string, unknown>];
+    expect(patchPath).toContain("CorporateAccountCollection('OBJ1')");
+    expect(patchBody).toEqual({ Phone: "+51942568111" });
+  });
+
   it("Caso 1: cliente nuevo - crea cuenta y direccion, usa region/postal del formulario", async () => {
     const postEntity = vi
       .fn()
@@ -124,6 +153,107 @@ describe("resolveCustomer - Individual DNI", () => {
 
     expect(result.wasCreated).toBe(false);
     expect(client.postEntity).not.toHaveBeenCalled();
+  });
+
+  it("cliente existente: actualiza en C4C solo el nombre/telefono/correo que cambiaron", async () => {
+    const patch = vi.fn();
+    const client = mockClient({
+      patch,
+      getCollection: vi
+        .fn()
+        .mockResolvedValueOnce([{ ParentObjectID: "OBJ2", CustomerID: "1035063" }])
+        .mockResolvedValueOnce([
+          {
+            ObjectID: "OBJ2",
+            CustomerID: "1035063",
+            StateCode: "15",
+            StreetPostalCode: "07001",
+            FirstName: "ALVARO MIGUEL",
+            LastName: "SEBASTIANI RUBIO",
+            Phone: "+51900000000",
+            Email: "viejo@example.com",
+          },
+        ]),
+    });
+
+    await resolveCustomer(input, client);
+
+    expect(patch).toHaveBeenCalledTimes(1);
+    const [patchPath, patchBody] = patch.mock.calls[0] as [string, Record<string, unknown>];
+    expect(patchPath).toContain("IndividualCustomerCollection('OBJ2')");
+    // Telefono y correo cambiaron; los nombres son identicos, no se reenvian.
+    expect(patchBody).toEqual({ Phone: "+51942568111", Email: "cliente@example.com" });
+  });
+
+  it("cliente existente: no hace PATCH si los datos de contacto no cambiaron", async () => {
+    const patch = vi.fn();
+    const client = mockClient({
+      patch,
+      getCollection: vi
+        .fn()
+        .mockResolvedValueOnce([{ ParentObjectID: "OBJ2", CustomerID: "1035063" }])
+        .mockResolvedValueOnce([
+          {
+            ObjectID: "OBJ2",
+            CustomerID: "1035063",
+            StateCode: "15",
+            StreetPostalCode: "07001",
+            FirstName: "ALVARO MIGUEL",
+            LastName: "SEBASTIANI RUBIO",
+            Phone: "+51942568111",
+            Email: "cliente@example.com",
+          },
+        ]),
+    });
+
+    await resolveCustomer(input, client);
+
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("cliente existente: un telefono2 ausente no borra el Mobile ya registrado", async () => {
+    const patch = vi.fn();
+    const client = mockClient({
+      patch,
+      getCollection: vi
+        .fn()
+        .mockResolvedValueOnce([{ ParentObjectID: "OBJ2", CustomerID: "1035063" }])
+        .mockResolvedValueOnce([
+          {
+            ObjectID: "OBJ2",
+            CustomerID: "1035063",
+            StateCode: "15",
+            StreetPostalCode: "07001",
+            FirstName: "ALVARO MIGUEL",
+            LastName: "SEBASTIANI RUBIO",
+            Phone: "+51942568111",
+            Mobile: "+51955555555",
+            Email: "nuevo@example.com",
+          },
+        ]),
+    });
+
+    // `input` no trae telefono2 - el Mobile guardado debe quedar intacto.
+    await resolveCustomer({ ...input, email: "nuevo@example.com" }, client);
+
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("cliente existente: si el PATCH de contacto falla, la solicitud sigue adelante", async () => {
+    const client = mockClient({
+      patch: vi.fn().mockRejectedValue(new Error("C4C 500")),
+      getCollection: vi
+        .fn()
+        .mockResolvedValueOnce([{ ParentObjectID: "OBJ2", CustomerID: "1035063" }])
+        .mockResolvedValueOnce([
+          { ObjectID: "OBJ2", CustomerID: "1035063", StateCode: "15", StreetPostalCode: "07001", Email: "viejo@example.com" },
+        ]),
+    });
+
+    const result = await resolveCustomer(input, client);
+
+    expect(result.buyerPartyId).toBe("1035063");
+    expect(result.wasCreated).toBe(false);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { and, eq } from "@cerocontacto/c4c-client";
+import { syncContactFields } from "./contactSync.js";
 import type { CorporateAccount, CorporateAccountTaxNumber, CustomerResolutionResult, EmpresaInput } from "./types.js";
 
 const NS = "v1/c4codataapi";
@@ -32,6 +33,9 @@ export async function resolveEmpresa(
  * solicitud, se les agrega la direccion recien ingresada por el cliente -
  * mismo POST de CorporateAccountAddress que usa createEmpresa para una
  * cuenta nueva.
+ *
+ * Ademas de la direccion, se sincronizan razon social/telefono/correo si
+ * el cliente los corrigio en el formulario (observacion 21 del usuario).
  */
 async function resolveExistingEmpresa(
   taxMatch: CorporateAccountTaxNumber,
@@ -43,6 +47,24 @@ async function resolveExistingEmpresa(
     `${NS}/CorporateAccountCollection?$filter=${encodeURIComponent(filter)}`,
   );
   const account = accounts[0];
+
+  await syncContactFields(
+    `${NS}/CorporateAccountCollection('${taxMatch.ParentObjectID}')`,
+    {
+      Name: account?.Name ?? "",
+      Phone: account?.Phone ?? "",
+      Mobile: account?.Mobile ?? "",
+      Email: account?.Email ?? "",
+    },
+    {
+      Name: input.razonSocial,
+      Phone: input.telefono,
+      Mobile: input.telefono2 ?? "",
+      Email: input.email,
+    },
+    client,
+  );
+
   if (account?.StateCode && account?.StreetPostalCode) {
     return {
       clientKind: "empresa",

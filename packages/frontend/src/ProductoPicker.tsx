@@ -23,9 +23,20 @@ interface ProductoPickerProps {
 }
 
 /**
- * Selector de equipo en 2 pasos: categoria (fija, 9 tipos vendibles) y
- * luego autocompletado por nombre contra el catalogo real de C4C
- * (produccion, solo lectura) - reemplaza el campo libre de "codigo de
+ * Etiqueta visible de un producto del catalogo: "codigo - descripcion".
+ * El codigo se muestra junto a la descripcion porque el cliente suele
+ * tenerlo a mano en la boleta o en la etiqueta del producto, y sin el no
+ * puede distinguir dos modelos con descripciones casi identicas
+ * (observacion 13 del usuario). El backend ya busca por ambos campos.
+ */
+function formatProductLabel(productId: string, nombre: string): string {
+  return productId ? `${productId} - ${nombre}` : nombre;
+}
+
+/**
+ * Selector de producto en 2 pasos: categoria (fija, 9 tipos vendibles) y
+ * luego autocompletado por descripcion o codigo contra el catalogo real de
+ * C4C (produccion, solo lectura) - reemplaza el campo libre de "codigo de
  * producto" para que el cliente no tenga que saber el codigo exacto.
  */
 export function ProductoPicker({
@@ -41,7 +52,7 @@ export function ProductoPicker({
   productoError,
   fotosError,
 }: ProductoPickerProps) {
-  const [query, setQuery] = useState(productNombre);
+  const [query, setQuery] = useState(() => formatProductLabel(productId, productNombre));
   const [results, setResults] = useState<ProductCatalogItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,8 +62,8 @@ export function ProductoPicker({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    setQuery(productNombre);
-  }, [productNombre]);
+    setQuery(formatProductLabel(productId, productNombre));
+  }, [productId, productNombre]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
@@ -89,7 +100,7 @@ export function ProductoPicker({
 
   function selectItem(item: ProductCatalogItem) {
     onProductoChange(item.productId, item.nombre);
-    setQuery(item.nombre);
+    setQuery(formatProductLabel(item.productId, item.nombre));
     setResults([]);
     setOpen(false);
   }
@@ -137,7 +148,7 @@ export function ProductoPicker({
   return (
     <>
       <div className="field">
-        <label htmlFor={`${idPrefix}-categoria`}>Tipo de equipo</label>
+        <label htmlFor={`${idPrefix}-categoria`}>Tipo de producto</label>
         <select
           id={`${idPrefix}-categoria`}
           value={categoria}
@@ -148,7 +159,7 @@ export function ProductoPicker({
             setResults([]);
           }}
         >
-          <option value="">Selecciona el tipo de equipo</option>
+          <option value="">Selecciona el tipo de producto</option>
           {PRODUCT_CATEGORIES.map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre}
@@ -165,7 +176,7 @@ export function ProductoPicker({
             id={`${idPrefix}-modelo`}
             type="text"
             autoComplete="off"
-            placeholder={categoria ? "Escribe el nombre del modelo..." : "Primero selecciona el tipo de equipo"}
+            placeholder={categoria ? "Escribe el código o la descripción del modelo..." : "Primero selecciona el tipo de producto"}
             disabled={!categoria}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
@@ -200,7 +211,7 @@ export function ProductoPicker({
                     className={index === highlightedIndex ? "is-highlighted" : undefined}
                   >
                     <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selectItem(item)}>
-                      {item.nombre}
+                      {formatProductLabel(item.productId, item.nombre)}
                     </button>
                   </li>
                 ))
@@ -212,7 +223,7 @@ export function ProductoPicker({
       </div>
 
       <div className="field">
-        <label htmlFor={`${idPrefix}-fotos`}>Fotos del equipo (opcional)</label>
+        <label htmlFor={`${idPrefix}-fotos`}>Fotos del producto (opcional)</label>
         {fotos.length > 0 ? (
           <div className="foto-grid">
             {fotos.map((foto, index) => (
@@ -240,7 +251,7 @@ export function ProductoPicker({
           />
         ) : null}
         {processingFotos ? <p className="hint">Procesando fotos...</p> : null}
-        <p className="hint">Hasta {MAX_FOTOS} fotos. Sirven para documentar el estado del equipo al instalarlo.</p>
+        <p className="hint">Hasta {MAX_FOTOS} fotos. Sirven para documentar el estado del producto al instalarlo.</p>
         <FieldError message={fotosError} />
       </div>
     </>

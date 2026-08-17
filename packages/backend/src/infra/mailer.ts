@@ -185,11 +185,11 @@ function buildHtml(input: TicketConfirmationInput): string {
       : filaResumen(["Numeros de ticket:", ticketIds.join(", ")]);
 
   // En un resultado parcial el correo solo conoce el productId, un codigo
-  // interno sin significado para el cliente: se le dice cuantos equipos
+  // interno sin significado para el cliente: se le dice cuantos productos
   // faltaron y que un asesor los vera, sin mostrar codigos.
   const faltantes = productosFallidos?.length
     ? `<tr><td style="padding:0 14px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${ROJO}">
-         No pudimos agendar ${productosFallidos.length === 1 ? "uno de tus equipos" : `${productosFallidos.length} de tus equipos`}.
+         No pudimos agendar ${productosFallidos.length === 1 ? "uno de tus productos" : `${productosFallidos.length} de tus productos`}.
          Un asesor se comunicara contigo para completarlo.
        </td></tr>`
     : "";

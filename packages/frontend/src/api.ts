@@ -69,7 +69,7 @@ export async function submitServiceRequest(payload: ServiceRequestSubmission): P
       status: "Partial",
       ticketIds: body.ticketIds,
       productosFallidos: body.productosFallidos ?? [],
-      errorMessage: body.errorMessage ?? "Algunos equipos no pudieron agendarse.",
+      errorMessage: body.errorMessage ?? "Algunos productos no pudieron agendarse.",
     };
   }
   return { status: "Failed", errorMessage: body?.errorMessage ?? "No pudimos procesar tu solicitud." };

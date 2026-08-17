@@ -212,7 +212,7 @@ interface StepDef {
 const STEPS: StepDef[] = [
   { n: 1, label: "Datos personales" },
   { n: 2, label: "Dirección" },
-  { n: 3, label: "Equipos" },
+  { n: 3, label: "Productos" },
   { n: 4, label: "Fecha" },
 ];
 function StepHeader({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
@@ -243,6 +243,25 @@ function stepForField(path: string): number {
 }
 function sanitizeDigits(value: string, maxLen: number): string {
   return value.replace(/\D/g, "").slice(0, maxLen);
+}
+/**
+ * Nombres y apellidos aceptan solo texto: letras (con tildes y ñ, que en
+ * nombres peruanos son la norma, no la excepcion), espacios, apostrofo y
+ * guion - los dos ultimos aparecen en apellidos reales ("D'Angelo",
+ * "Vargas-Llosa"). Se filtra mientras se escribe en vez de validar al
+ * salir del campo, para que el nombre nunca llegue a C4C con digitos o
+ * simbolos que el asesor tenga que limpiar a mano.
+ */
+function sanitizeLetters(value: string, maxLen: number): string {
+  return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]/g, "").slice(0, maxLen);
+}
+/**
+ * El CE (Carne de Extranjeria) es alfanumerico, a diferencia de DNI/RUC
+ * que son solo digitos - se filtra a alfanumerico para que no entren
+ * espacios ni guiones, que es lo que rechaza `isValidCe`.
+ */
+function sanitizeAlphanumeric(value: string, maxLen: number): string {
+  return value.replace(/[^A-Za-z0-9]/g, "").slice(0, maxLen);
 }
 export default function App() {
   const [form, setForm] = useState<FormState>(loadStoredProgress);
@@ -279,6 +298,16 @@ export default function App() {
     DNI: isValidDni,
     CE: isValidCe,
     RUC: isValidRuc,
+  };
+  /**
+   * Mensajes que dicen el formato esperado en vez de un "invalido" seco: el
+   * cliente no tiene forma de saber si le falta un digito o si el RUC no
+   * pasa el digito verificador de SUNAT.
+   */
+  const DOCUMENT_ERROR_MESSAGES: Record<FormState["tipoDocumento"], string> = {
+    DNI: "El DNI debe tener 8 dígitos",
+    RUC: "El RUC debe tener 11 dígitos y ser un número válido",
+    CE: "El carné de extranjería debe tener entre 6 y 12 caracteres (letras y números)",
   };
   // Mismo patron que PHONE_REGEX en shared/schemas/serviceRequestDto.ts -
   // duplicado a proposito (validacion temprana en el frontend, no
@@ -319,8 +348,12 @@ export default function App() {
   }
   async function handleDocumentoBlur() {
     const numeroDocumento = form.numeroDocumento.trim();
-    const tipoLabel = form.tipoDocumento === "RUC" ? "RUC" : form.tipoDocumento === "CE" ? "Carné de extranjería" : "DNI";
-    validateOnBlur("numeroDocumento", numeroDocumento, DOCUMENT_VALIDATORS[form.tipoDocumento], `${tipoLabel} inválido`);
+    validateOnBlur(
+      "numeroDocumento",
+      numeroDocumento,
+      DOCUMENT_VALIDATORS[form.tipoDocumento],
+      DOCUMENT_ERROR_MESSAGES[form.tipoDocumento],
+    );
     if (!DOCUMENT_VALIDATORS[form.tipoDocumento](numeroDocumento)) return;
     setCustomerLookupStatus("loading");
     try {
@@ -376,9 +409,36 @@ export default function App() {
       setCustomerLookupStatus("idle");
     }
   }
+  /**
+   * Cada tipo de documento filtra lo que se puede escribir: DNI y RUC solo
+   * digitos (8 y 11, longitud exacta), CE alfanumerico de hasta 12. El tope
+   * de longitud se aplica aca y no solo con `maxLength` del input, porque
+   * `maxLength` no recorta un valor que ya estaba en el campo (ej. pegar,
+   * o autocompletado del navegador).
+   */
+  function sanitizeDocumento(tipo: FormState["tipoDocumento"], value: string): string {
+    if (tipo === "DNI") return sanitizeDigits(value, 8);
+    if (tipo === "RUC") return sanitizeDigits(value, 11);
+    return sanitizeAlphanumeric(value, 12);
+  }
+  /**
+   * Cambiar el tipo de documento invalida el numero ya escrito (11 digitos
+   * de RUC no son un DNI, y un CE alfanumerico no es ninguno de los dos) y
+   * tambien la busqueda de cliente que se hizo con el tipo anterior - se
+   * limpia todo para que el cliente no quede con un numero que el campo ya
+   * no permitiria escribir, ni con datos autocompletados de otra persona.
+   */
+  function handleTipoDocumentoChange(tipo: FormState["tipoDocumento"]) {
+    setForm((prev) => ({ ...prev, tipoDocumento: tipo, numeroDocumento: "" }));
+    clearFieldError("numeroDocumento");
+    if (lookedUpDocumento !== null) {
+      clearAutofilledFields();
+      setLookedUpDocumento(null);
+    }
+    setCustomerLookupStatus("idle");
+  }
   function handleDocumentoChange(value: string) {
-    const maxLen = form.tipoDocumento === "DNI" ? 8 : form.tipoDocumento === "RUC" ? 11 : null;
-    const sanitized = maxLen !== null ? sanitizeDigits(value, maxLen) : value;
+    const sanitized = sanitizeDocumento(form.tipoDocumento, value);
     if (lookedUpDocumento !== null && sanitized !== lookedUpDocumento) {
       clearAutofilledFields();
       setLookedUpDocumento(null);
@@ -593,7 +653,7 @@ export default function App() {
         <div className="card">
         <div className="card__inner welcome-card">
           <h1>¡Hola! Bienvenido a Cero Contacto</h1>
-          <p>Programa la instalación de tu equipo en 4 pasos rápidos.</p>
+          <p>Programa la instalación de tu producto en 4 pasos rápidos.</p>
           <button type="button" className="btn-primary" onClick={() => setShowWelcome(false)}>
             Comenzar
           </button>
@@ -642,7 +702,7 @@ export default function App() {
                 </p>
               ) : (
                 <>
-                  <p>Se generó un ticket por cada equipo:</p>
+                  <p>Se generó un ticket por cada producto:</p>
                   <ul className="ticket-list">
                     {result.ticketIds.map((id) => (
                       <li key={id}>
@@ -659,7 +719,7 @@ export default function App() {
           {result.status === "Partial" && (
             <>
               <h1>Agendamos parte de tu solicitud</h1>
-              <p>Estos equipos quedaron agendados:</p>
+              <p>Estos productos quedaron agendados:</p>
               <ul className="ticket-list">
                 {result.ticketIds.map((id) => (
                   <li key={id}>
@@ -667,7 +727,7 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-              <p>No pudimos agendar estos equipos:</p>
+              <p>No pudimos agendar estos productos:</p>
               <ul className="ticket-list">
                 {result.productosFallidos.map((id, index) => (
                   // Dos equipos del mismo combo pueden compartir productId (ej.
@@ -678,7 +738,7 @@ export default function App() {
               </ul>
               <p className="muted">{result.errorMessage}</p>
               <p className="muted">
-                Comunícate con nosotros por WhatsApp para agendar los equipos que faltaron.
+                Comunícate con nosotros por WhatsApp para agendar los productos que faltaron.
               </p>
             </>
           )}
@@ -717,7 +777,7 @@ export default function App() {
       <HeroPanel />
       <div className="card">
       <div className="card__inner">
-        <h1 className="form-title">Programa tu servicio</h1>
+        <h1 className="form-title">Programa tu instalación</h1>
         <StepHeader current={step} onSelect={goToStep} />
         <form onSubmit={handleSubmit} noValidate>
           {step === 1 && (
@@ -728,7 +788,7 @@ export default function App() {
               <select
                 id="tipoDocumento"
                 value={form.tipoDocumento}
-                onChange={(e) => update("tipoDocumento", e.target.value as FormState["tipoDocumento"])}
+                onChange={(e) => handleTipoDocumentoChange(e.target.value as FormState["tipoDocumento"])}
               >
                 <option value="DNI">DNI</option>
                 <option value="RUC">RUC</option>
@@ -740,7 +800,9 @@ export default function App() {
               <input
                 id="numeroDocumento"
                 type="text"
-                maxLength={form.tipoDocumento === "CE" ? 12 : undefined}
+                inputMode={form.tipoDocumento === "CE" ? "text" : "numeric"}
+                maxLength={form.tipoDocumento === "DNI" ? 8 : form.tipoDocumento === "RUC" ? 11 : 12}
+                placeholder={form.tipoDocumento === "DNI" ? "8 dígitos" : form.tipoDocumento === "RUC" ? "11 dígitos" : "6 a 12 caracteres"}
                 value={form.numeroDocumento}
                 onChange={(e) => handleDocumentoChange(e.target.value)}
                 onBlur={handleDocumentoBlur}
@@ -765,7 +827,13 @@ export default function App() {
               <>
                 <div className="field">
                   <label htmlFor="nombres">Nombres</label>
-                  <input id="nombres" type="text" maxLength={40} value={form.nombres} onChange={(e) => update("nombres", e.target.value)} />
+                  <input
+                    id="nombres"
+                    type="text"
+                    maxLength={40}
+                    value={form.nombres}
+                    onChange={(e) => update("nombres", sanitizeLetters(e.target.value, 40))}
+                  />
                   <FieldError message={fieldErrors.nombres} />
                 </div>
                 <div className="field">
@@ -775,7 +843,7 @@ export default function App() {
                     type="text"
                     maxLength={40}
                     value={form.apellidos}
-                    onChange={(e) => update("apellidos", e.target.value)}
+                    onChange={(e) => update("apellidos", sanitizeLetters(e.target.value, 40))}
                   />
                   <FieldError message={fieldErrors.apellidos} />
                 </div>
@@ -1029,10 +1097,9 @@ export default function App() {
           )}
           {step === 3 && (
           <fieldset>
-            <legend>Tus equipos</legend>
+            <legend>Tus productos</legend>
             <p className="hint">
-              Agrega un producto por cada equipo que necesites instalar (ej. cocina, horno y campana del mismo combo) —
-              se agenda una sola visita y se genera un ticket por equipo.
+              Agrega cada producto que deseas instalar. Si compraste varios productos, regístralos uno por uno.
             </p>
             {form.productos.map((producto, index) => (
               <div className="producto-row" key={index}>
@@ -1095,7 +1162,6 @@ export default function App() {
                 whatsappUrl={WHATSAPP_URL}
                 error={fieldErrors.fechaVisita}
               />
-              <p className="hint">Fecha tentativa, sujeta a disponibilidad de cupos - un asesor confirmara la fecha y el tecnico asignado por WhatsApp o email.</p>
             </div>
             <div className="field">
               <label htmlFor="comentario">Cuéntanos más sobre el estado de tu producto y el servicio que requieres (opcional)</label>

@@ -127,7 +127,7 @@ describe("sendTicketConfirmation", () => {
     expect((fetchMock.mock.calls[2] as [string])[0]).toContain("sendMail");
   });
 
-  it("en resultado parcial avisa cuantos equipos faltaron, sin mostrar codigos internos", async () => {
+  it("en resultado parcial avisa cuantos productos faltaron, sin mostrar codigos internos", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(new Response(null, { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -138,7 +138,7 @@ describe("sendTicketConfirmation", () => {
 
     const body = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string);
     expect(body.message.subject).toContain("parte de tu solicitud");
-    expect(body.message.body.content).toContain("2 de tus equipos");
+    expect(body.message.body.content).toContain("2 de tus productos");
     expect(body.message.body.content).not.toContain("10054512");
   });
 

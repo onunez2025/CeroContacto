@@ -300,6 +300,20 @@ select:disabled {
   color: var(--error);
 }
 
+/* Enlaces dentro de textos de ayuda y del consentimiento (condiciones del
+   servicio, politica de privacidad, WhatsApp). Sin esto quedan en el azul
+   por defecto del navegador sobre texto gris, que desentona y se lee mal. */
+.hint a,
+.checkbox-row a {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.hint a:hover,
+.checkbox-row a:hover {
+  color: var(--color-primary-hover);
+}
+
 .choice-row {
   display: flex;
   gap: 0.6rem;

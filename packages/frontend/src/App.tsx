@@ -220,6 +220,10 @@ function buildSubmission(form: FormState): unknown {
 }
 type Phase = "editing" | "submitting" | "done";
 const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=5116190500&text&type=phone_number&app_absent=0";
+/** Condiciones del servicio tecnico, en la web de Sole (observacion 3 del usuario). */
+const CONDICIONES_SERVICIO_URL = "https://www.sole.com.pe/servicio-de-instalacion";
+/** Politica que se acepta con el checkbox de consentimiento (observacion 3 del usuario). */
+const POLITICA_PRIVACIDAD_URL = "https://www.sole.com.pe/terminos-y-condiciones";
 function HeroPanel() {
   return (
     <aside className="hero">
@@ -1242,9 +1246,31 @@ export default function App() {
                 </label>
               </div>
             </div>
+            <p className="hint">
+              Antes de agendar, revisa las{" "}
+              <a href={CONDICIONES_SERVICIO_URL} target="_blank" rel="noopener noreferrer">
+                Condiciones del Servicio Técnico
+              </a>
+              .
+            </p>
             <label className="checkbox-row">
               <input type="checkbox" checked={form.consentimiento} onChange={(e) => update("consentimiento", e.target.checked)} />
-              <span>He leído y acepto la política de privacidad.</span>
+              <span>
+                He leído y acepto la{" "}
+                <a
+                  href={POLITICA_PRIVACIDAD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  // Un clic sobre cualquier hijo de un <label> se reenvia al
+                  // control asociado: sin esto, abrir la politica tambien
+                  // marcaria (o desmarcaria) el checkbox de consentimiento, que
+                  // es justo lo que no debe pasar por accidente.
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  política de privacidad
+                </a>
+                .
+              </span>
             </label>
             <FieldError message={fieldErrors.consentimiento} />
             {submitError ? <p className="error-banner">{submitError}</p> : null}

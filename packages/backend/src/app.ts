@@ -22,8 +22,36 @@ export function createApp(): Express {
   // 30mb: hasta 4 productos x 6 fotos redimensionadas (~800kb c/u como base64) en un solo POST.
   app.use(express.json({ limit: "30mb" }));
 
+  /**
+   * Estado del servicio + integraciones OPCIONALES que fallan en silencio.
+   *
+   * El correo de confirmacion estuvo caido en produccion del 2026-08-11 al
+   * 2026-08-17 sin que nadie lo notara: docker-compose.yml no le pasaba las
+   * MS_GRAPH_* al contenedor, y el mailer esta hecho a proposito para no
+   * tumbar la creacion del ticket cuando no puede enviar. Diagnosticarlo
+   * exigio revisar los logs del contenedor correcto; con esto se resuelve
+   * con un GET.
+   *
+   * Solo expone BOOLEANOS y el remitente (que va en el From de cada correo
+   * que se manda, no es un secreto). Nunca el tenant, el clientId ni el
+   * secret.
+   */
   app.get("/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+    const remitente = process.env.MS_GRAPH_SENDER_EMAIL;
+    const correoConfigurado = Boolean(
+      process.env.MS_GRAPH_TENANT_ID &&
+        process.env.MS_GRAPH_CLIENT_ID &&
+        process.env.MS_GRAPH_CLIENT_SECRET &&
+        remitente,
+    );
+    res.status(200).json({
+      status: "ok",
+      correo: {
+        configurado: correoConfigurado,
+        remitente: correoConfigurado ? remitente : null,
+        bannerConfigurado: Boolean(process.env.PUBLIC_BASE_URL),
+      },
+    });
   });
 
   /**

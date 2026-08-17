@@ -76,6 +76,22 @@ describe("createApp", () => {
     process.env.C4C_CATALOG_PASSWORD = "secret";
   });
 
+  /**
+   * Las MS_GRAPH_* se setean SOLO en los tests de /health, no en el
+   * beforeEach: con ellas presentes, los tests de POST /api/service-requests
+   * dan por configurado el mailer e intentan pedirle un token real a
+   * login.microsoftonline.com. El envio se traga el error y el test igual
+   * pasa, pero deja la suite haciendo red de verdad - lenta y rota sin
+   * conexion.
+   */
+  function configurarCorreoDePrueba(): void {
+    process.env.MS_GRAPH_TENANT_ID = "tenant-de-prueba";
+    process.env.MS_GRAPH_CLIENT_ID = "client-de-prueba";
+    process.env.MS_GRAPH_CLIENT_SECRET = "secret";
+    process.env.MS_GRAPH_SENDER_EMAIL = "remitente@example.com";
+    process.env.PUBLIC_BASE_URL = "https://ejemplo.test";
+  }
+
   afterEach(() => {
     process.env = { ...envBackup };
     mockOrchestration.mockReset();
@@ -86,10 +102,32 @@ describe("createApp", () => {
     mockIsValidPostalCode.mockReset();
   });
 
-  it("GET /health devuelve 200", async () => {
+  it("GET /health devuelve 200 e informa que el correo esta configurado", async () => {
+    configurarCorreoDePrueba();
     const res = await request(createApp()).get("/health");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "ok" });
+    expect(res.body.status).toBe("ok");
+    expect(res.body.correo).toEqual({
+      configurado: true,
+      remitente: "remitente@example.com",
+      bannerConfigurado: true,
+    });
+  });
+
+  /**
+   * Regresion del incidente del 2026-08-17: las MS_GRAPH_* no llegaban al
+   * contenedor y el correo no se enviaba, en silencio. /health tiene que
+   * delatarlo sin exponer nunca el secret.
+   */
+  it("GET /health delata que el correo NO esta configurado, sin filtrar credenciales", async () => {
+    configurarCorreoDePrueba();
+    delete process.env.MS_GRAPH_CLIENT_SECRET;
+
+    const res = await request(createApp()).get("/health");
+
+    expect(res.body.correo.configurado).toBe(false);
+    expect(res.body.correo.remitente).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain("secret");
   });
 
   it("POST /api/service-requests con JSON malformado devuelve 400", async () => {

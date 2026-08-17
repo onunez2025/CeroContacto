@@ -262,6 +262,18 @@ label {
   margin-bottom: 0.4rem;
 }
 
+/**
+ * Los <button> no heredan font-family del body: sin esto el navegador les
+ * pone su fuente de sistema (Arial en Windows) y toda la botonera del
+ * formulario - pasos, Siguiente/Anterior, Enviar solicitud, ayuda - quedaba
+ * fuera de Lato mientras el resto de la pagina si la usaba (observacion 10).
+ * Va en su propia regla y no sumando `button` al selector de abajo, que
+ * ademas fija width/padding/borde y romperia el diseño de los botones.
+ */
+button {
+  font-family: inherit;
+}
+
 input,
 select,
 textarea {

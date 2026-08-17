@@ -16,6 +16,7 @@ import {
 import { AyudaAgregarProducto } from "./AyudaAgregarProducto.js";
 import { FieldError } from "./FieldError.js";
 import { LUGARES_COMPRA } from "./lugaresCompra.js";
+import { acomodarParaDesplegable, convieneAbrirHaciaArriba } from "./mobileScroll.js";
 import { ProductoPicker } from "./ProductoPicker.js";
 import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 import { Spinner } from "./Spinner.js";
@@ -487,6 +488,16 @@ export default function App() {
   const [postalResults, setPostalResults] = useState<PostalCodeMatch[]>([]);
   const [postalHasMore, setPostalHasMore] = useState(false);
   const [postalOpen, setPostalOpen] = useState(false);
+  const [postalAbreArriba, setPostalAbreArriba] = useState(false);
+  const postalInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Se decide justo antes de mostrar la lista, con el teclado ya desplegado:
+   * si no queda espacio debajo del campo, se abre hacia arriba.
+   */
+  function abrirListaPostal(): void {
+    setPostalAbreArriba(convieneAbrirHaciaArriba(postalInputRef.current));
+    setPostalOpen(true);
+  }
   const [postalHighlightedIndex, setPostalHighlightedIndex] = useState(-1);
   const [postalLoading, setPostalLoading] = useState(false);
   const [postalSearchError, setPostalSearchError] = useState<string | null>(null);
@@ -565,13 +576,16 @@ export default function App() {
       const requestId = ++postalRequestIdRef.current;
       setPostalLoading(true);
       setPostalSearchError(null);
-      setPostalOpen(true);
+      abrirListaPostal();
       searchPostalCodes(form.departamento, value)
         .then(({ resultados, hayMasResultados }) => {
           if (requestId !== postalRequestIdRef.current) return;
           setPostalResults(resultados);
           setPostalHasMore(hayMasResultados);
           setPostalHighlightedIndex(-1);
+          // Con los resultados ya en pantalla se reevalua la direccion: el
+          // teclado pudo abrirse entre el tipeo y la respuesta.
+          abrirListaPostal();
         })
         .catch((err: unknown) => {
           if (requestId !== postalRequestIdRef.current) return;
@@ -1028,8 +1042,9 @@ export default function App() {
                   </p>
                 ) : (
                   <>
-                    <div className="autocomplete">
+                    <div className={`autocomplete${postalAbreArriba ? " abre-arriba" : ""}`}>
                       <input
+                        ref={postalInputRef}
                         id="codigoPostal"
                         type="text"
                         autoComplete="off"
@@ -1037,7 +1052,11 @@ export default function App() {
                         disabled={!form.departamento || (coverageStatus !== "covered" && coverageStatus !== "error")}
                         value={postalQuery}
                         onChange={(e) => handlePostalQueryChange(e.target.value)}
-                        onFocus={() => postalResults.length > 0 && setPostalOpen(true)}
+                        onFocus={(e) => {
+                          // Sube el campo antes de que el teclado tape los resultados.
+                          acomodarParaDesplegable(e.currentTarget);
+                          if (postalResults.length > 0) abrirListaPostal();
+                        }}
                         onBlur={() => setTimeout(() => setPostalOpen(false), 150)}
                         onKeyDown={handlePostalInputKeyDown}
                         role="combobox"

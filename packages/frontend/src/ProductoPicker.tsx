@@ -2,6 +2,7 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
+import { acomodarParaDesplegable, convieneAbrirHaciaArriba } from "./mobileScroll.js";
 import { resizeImageToDataUrl } from "./imageResize.js";
 import { PRODUCT_CATEGORIES } from "./productCategories.js";
 import { Spinner } from "./Spinner.js";
@@ -65,7 +66,15 @@ export function ProductoPicker({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [processingFotos, setProcessingFotos] = useState(false);
+  const [abreArriba, setAbreArriba] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /** Se decide justo antes de mostrar la lista, con el teclado ya desplegado. */
+  function abrirLista(): void {
+    setAbreArriba(convieneAbrirHaciaArriba(inputRef.current));
+    setOpen(true);
+  }
 
   useEffect(() => {
     setQuery(formatProductLabel(productCodigo, productNombre));
@@ -87,17 +96,17 @@ export function ProductoPicker({
     debounceRef.current = setTimeout(() => {
       setLoading(true);
       setSearchError(null);
-      setOpen(true);
+      abrirLista();
       searchProducts(categoria, value)
         .then((items) => {
           setResults(items);
-          setOpen(true);
+          abrirLista();
           setHighlightedIndex(-1);
         })
         .catch((err: unknown) => {
           setSearchError(err instanceof ApiError ? err.message : "No pudimos buscar productos. Intenta de nuevo.");
           setResults([]);
-          setOpen(true);
+          abrirLista();
           setHighlightedIndex(-1);
         })
         .finally(() => setLoading(false));
@@ -177,8 +186,9 @@ export function ProductoPicker({
 
       <div className="field">
         <label htmlFor={`${idPrefix}-modelo`}>Modelo</label>
-        <div className="autocomplete">
+        <div className={`autocomplete${abreArriba ? " abre-arriba" : ""}`}>
           <input
+            ref={inputRef}
             id={`${idPrefix}-modelo`}
             type="text"
             autoComplete="off"
@@ -186,7 +196,11 @@ export function ProductoPicker({
             disabled={!categoria}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            onFocus={() => results.length > 0 && setOpen(true)}
+            onFocus={(e) => {
+              // Sube el campo antes de que el teclado tape la lista de modelos.
+              acomodarParaDesplegable(e.currentTarget);
+              if (results.length > 0) abrirLista();
+            }}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onKeyDown={handleInputKeyDown}
             role="combobox"

@@ -66,7 +66,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
+  /* La franja de WhatsApp dibujada en la imagen es del 3.6% del alto, que en
+     celular son 13px - casi imposible de acertar. Se mantiene esa altura
+     visual y se extiende el area sensible hacia arriba hasta 44px. */
   height: 3.6%;
+  min-height: 44px;
   display: block;
 }
 
@@ -151,10 +155,19 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   background: none;
   border: none;
-  padding: 0;
+  /**
+   * El area tactil llega a 44px aunque el circulo se vea de 28: es la
+   * navegacion principal del formulario y en celular era casi imposible de
+   * acertar con el dedo. El padding agranda la zona sensible sin cambiar el
+   * diseño.
+   */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.35rem;
   cursor: pointer;
   color: var(--color-text-muted);
 }
@@ -278,8 +291,16 @@ input,
 select,
 textarea {
   width: 100%;
-  padding: 0.7rem 0.85rem;
-  font-size: 0.95rem;
+  padding: 0.8rem 0.85rem;
+  /**
+   * 16px EXACTOS, no menos: Safari en iPhone hace zoom automatico sobre
+   * cualquier campo con fuente menor, y al salir no vuelve al tamaño
+   * original - el formulario "salta" en cada campo. Estaba en 0.95rem
+   * (15.2px), justo por debajo del umbral. No usar rem aca: si el usuario
+   * baja el tamaño de fuente del navegador, 1rem caeria otra vez bajo 16px
+   * y volveria el zoom.
+   */
+  font-size: 16px;
   font-family: inherit;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
@@ -630,6 +651,8 @@ select:disabled {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  /* Ver .autocomplete.abre-arriba: en celular la lista se voltea cuando el
+     teclado no deja espacio debajo del campo. */
   max-height: 220px;
   overflow-y: auto;
   margin: 0;
@@ -639,6 +662,17 @@ select:disabled {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   box-shadow: 0 8px 24px -12px rgba(43, 36, 36, 0.3);
+}
+
+/**
+ * Lista volteada hacia arriba. Se aplica cuando el teclado del celular no
+ * deja espacio suficiente debajo del campo: sin esto, el cliente escribia su
+ * distrito y los resultados quedaban integramente ocultos tras el teclado
+ * (medido en produccion: 0 opciones visibles).
+ */
+.autocomplete.abre-arriba .autocomplete-list {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .autocomplete-list li button {
@@ -737,8 +771,10 @@ select:disabled {
 }
 
 .calendar__nav {
-  width: 28px;
-  height: 28px;
+  /* 44px de area tactil, igual que el navegador de pasos: cambiar de mes
+     con el dedo sobre un circulo de 28px era una loteria. */
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--color-border);
   background: var(--bg-panel);

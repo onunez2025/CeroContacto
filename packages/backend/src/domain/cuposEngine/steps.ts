@@ -61,6 +61,16 @@ export async function isGrupoMaterialHabilitado(
   return results.length > 0;
 }
 
+/**
+ * Minimo de cupos reales disponibles para que una fecha se ofrezca en el
+ * calendario. Bajado de 10 a 3 por pedido del negocio (observacion 19,
+ * 2026-08-17): con el umbral en 10 quedaban fuera del calendario zonas que
+ * si tenian cupos utilizables, sobre todo areas chicas cuya capacidad
+ * diaria nunca pasa de 10 - el cliente veia "no tenemos fechas
+ * disponibles" para un dia que en C4C si tenia cupo.
+ */
+const MIN_CUPOS_DISPONIBLES = 3;
+
 export const DAY_FIELDS = [
   "zCupFechDomingo",
   "zCupFechLunes",
@@ -159,7 +169,7 @@ export async function checkCapacidad(
  * Version en rango de checkCapacidad: en vez de una fecha y una empresa,
  * trae en UNA sola consulta todos los registros de capacidad REAL (ya
  * descontando reservas) de varias empresas candidatas para un rango de
- * fechas, ya filtrados por "mas de 10 cupos disponibles". Se usa para
+ * fechas, ya filtrados por MIN_CUPOS_DISPONIBLES. Se usa para
  * calcular que fechas mostrar habilitadas en el calendario, sin consultar
  * C4C dia por dia.
  *
@@ -188,7 +198,7 @@ export async function checkCapacidadRango(
   const filter = and(
     eq("zDepartamento", regionCode),
     eqBool("zActivo", true),
-    cmpRaw("zCantidadReal", "gt", "10"),
+    cmpRaw("zCantidadReal", "gt", String(MIN_CUPOS_DISPONIBLES)),
     or(...companyIds.map((id) => eq("zIdEmpresa", id))),
     cmpRaw("zFecha", "ge", `datetime'${desde}T00:00:00'`),
   );

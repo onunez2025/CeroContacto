@@ -259,7 +259,7 @@ describe("getFechasDisponibles", () => {
     expect(result).toEqual(["2026-08-03"]);
   });
 
-  it("la consulta de capacidad filtra explicitamente por mas de 10 cupos reales disponibles", async () => {
+  it("la consulta de capacidad filtra explicitamente por mas de 3 cupos reales disponibles", async () => {
     let capturedPath = "";
     const client = clientFromRouter(async (path) => {
       if (path.includes("BO_RegionRootCollection")) return [region];
@@ -273,7 +273,7 @@ describe("getFechasDisponibles", () => {
     });
 
     await getFechasDisponibles(baseFechasInput, client);
-    expect(capturedPath).toContain(encodeURIComponent("zCantidadReal gt 10"));
+    expect(capturedPath).toContain(encodeURIComponent("zCantidadReal gt 3"));
   });
 
   it("filtra el limite superior de fechas client-side (sin incluir 'zFecha le' en el $filter)", async () => {

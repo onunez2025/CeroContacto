@@ -18,6 +18,19 @@ services:
       C4C_CATALOG_BASE_URL: ${C4C_CATALOG_BASE_URL}
       C4C_CATALOG_USER: ${C4C_CATALOG_USER}
       C4C_CATALOG_PASSWORD: ${C4C_CATALOG_PASSWORD}
+      # Correo de confirmacion via Microsoft Graph. Faltaban aca desde que se
+      # agrego el mailer (2026-08-11): compose solo inyecta al contenedor las
+      # variables que declara, asi que readGraphConfig() no las encontraba y
+      # el correo NUNCA se envio desde produccion, en silencio.
+      MS_GRAPH_TENANT_ID: ${MS_GRAPH_TENANT_ID}
+      MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID}
+      MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET}
+      MS_GRAPH_SENDER_EMAIL: ${MS_GRAPH_SENDER_EMAIL}
+      # Base publica para el banner del correo; sin esto el correo sale sin imagen.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      # "production" (en ingles) es la clave que espera ENV_FILES en env.ts;
+      # con cualquier otro valor cae al default ".env.local".
+      APP_ENV: ${APP_ENV:-production}
 
   frontend:
     build:

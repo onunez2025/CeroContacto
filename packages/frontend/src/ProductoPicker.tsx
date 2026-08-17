@@ -12,10 +12,11 @@ interface ProductoPickerProps {
   idPrefix: string;
   categoria: string;
   productId: string;
+  productCodigo: string;
   productNombre: string;
   fotos: string[];
   onCategoriaChange: (categoria: string) => void;
-  onProductoChange: (productId: string, nombre: string) => void;
+  onProductoChange: (productId: string, codigo: string, nombre: string) => void;
   onFotosChange: (fotos: string[]) => void;
   categoriaError?: string;
   productoError?: string;
@@ -27,10 +28,14 @@ interface ProductoPickerProps {
  * El codigo se muestra junto a la descripcion porque el cliente suele
  * tenerlo a mano en la boleta o en la etiqueta del producto, y sin el no
  * puede distinguir dos modelos con descripciones casi identicas
- * (observacion 13 del usuario). El backend ya busca por ambos campos.
+ * (observacion 13 del usuario).
+ *
+ * `codigo` es el ExternalID de C4C ("3121SOLRD5500V3C"), NO el ProductID
+ * interno ("10018698") que se envia al crear el ticket - mostrar ese
+ * correlativo no le decia nada al cliente.
  */
-function formatProductLabel(productId: string, nombre: string): string {
-  return productId ? `${productId} - ${nombre}` : nombre;
+function formatProductLabel(codigo: string, nombre: string): string {
+  return codigo ? `${codigo} - ${nombre}` : nombre;
 }
 
 /**
@@ -43,6 +48,7 @@ export function ProductoPicker({
   idPrefix,
   categoria,
   productId,
+  productCodigo,
   productNombre,
   fotos,
   onCategoriaChange,
@@ -52,7 +58,7 @@ export function ProductoPicker({
   productoError,
   fotosError,
 }: ProductoPickerProps) {
-  const [query, setQuery] = useState(() => formatProductLabel(productId, productNombre));
+  const [query, setQuery] = useState(() => formatProductLabel(productCodigo, productNombre));
   const [results, setResults] = useState<ProductCatalogItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,12 +68,12 @@ export function ProductoPicker({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    setQuery(formatProductLabel(productId, productNombre));
-  }, [productId, productNombre]);
+    setQuery(formatProductLabel(productCodigo, productNombre));
+  }, [productCodigo, productNombre]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
-    if (productId) onProductoChange("", "");
+    if (productId) onProductoChange("", "", "");
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (!categoria || value.trim().length < 2) {
@@ -99,8 +105,8 @@ export function ProductoPicker({
   }
 
   function selectItem(item: ProductCatalogItem) {
-    onProductoChange(item.productId, item.nombre);
-    setQuery(formatProductLabel(item.productId, item.nombre));
+    onProductoChange(item.productId, item.codigo, item.nombre);
+    setQuery(formatProductLabel(item.codigo, item.nombre));
     setResults([]);
     setOpen(false);
   }
@@ -154,7 +160,7 @@ export function ProductoPicker({
           value={categoria}
           onChange={(e) => {
             onCategoriaChange(e.target.value);
-            onProductoChange("", "");
+            onProductoChange("", "", "");
             setQuery("");
             setResults([]);
           }}
@@ -211,7 +217,7 @@ export function ProductoPicker({
                     className={index === highlightedIndex ? "is-highlighted" : undefined}
                   >
                     <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selectItem(item)}>
-                      {formatProductLabel(item.productId, item.nombre)}
+                      {formatProductLabel(item.codigo, item.nombre)}
                     </button>
                   </li>
                 ))

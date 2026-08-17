@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--workspace=@cerocontacto/frontend"],
       "port": 5173
+    },
+    {
+      "name": "backend-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@cerocontacto/backend"],
+      "port": 3000
     }
   ]
 }

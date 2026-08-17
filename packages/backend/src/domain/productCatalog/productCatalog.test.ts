@@ -2,7 +2,13 @@ import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { describe, expect, it, vi } from "vitest";
 import { searchProducts } from "./index.js";
 
-function clientReturning(items: Array<{ ProductID: string; Description: string }>): IC4CODataClient {
+interface Row {
+  ProductID: string;
+  ExternalID?: string;
+  Description: string;
+}
+
+function clientReturning(items: Row[]): IC4CODataClient {
   return {
     getCollection: vi.fn().mockResolvedValue(items) as unknown as IC4CODataClient["getCollection"],
     postEntity: vi.fn(),
@@ -13,15 +19,12 @@ function clientReturning(items: Array<{ ProductID: string; Description: string }
 /**
  * Cliente que responde distinto segun el campo por el que se filtra:
  * searchProducts hace DOS consultas (una por Description, otra por
- * ProductID) porque C4C rechaza combinarlas con "or".
+ * ExternalID) porque C4C rechaza combinarlas con "or".
  */
-function clientPorCampo(
-  porDescripcion: Array<{ ProductID: string; Description: string }>,
-  porCodigo: Array<{ ProductID: string; Description: string }>,
-): IC4CODataClient {
+function clientPorCampo(porDescripcion: Row[], porCodigo: Row[]): IC4CODataClient {
   return {
     getCollection: vi.fn(async (path: string) =>
-      decodeURIComponent(path).includes(",ProductID)") ? porCodigo : porDescripcion,
+      decodeURIComponent(path).includes(",ExternalID)") ? porCodigo : porDescripcion,
     ) as unknown as IC4CODataClient["getCollection"],
     postEntity: vi.fn(),
     patch: vi.fn(),
@@ -43,11 +46,15 @@ describe("searchProducts", () => {
     expect(client.getCollection).not.toHaveBeenCalled();
   });
 
-  it("mapea ProductID/Description a productId/nombre y filtra por categoria + activo + nombre", async () => {
+  it("mapea ProductID/ExternalID/Description y filtra por categoria + activo + nombre", async () => {
     const client = clientPorCampo(
       [
-        { ProductID: "10008026", Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
-        { ProductID: "10008089", Description: "COCINA PIE GLP SOLE DUBAI 76CM" },
+        {
+          ProductID: "10008026",
+          ExternalID: "3120COSOL026V2",
+          Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM",
+        },
+        { ProductID: "10008089", ExternalID: "3120COSOL089V2", Description: "COCINA PIE GLP SOLE DUBAI 76CM" },
       ],
       [],
     );
@@ -55,8 +62,8 @@ describe("searchProducts", () => {
     const result = await searchProducts("SCP000000", "dubai", client);
 
     expect(result).toEqual([
-      { productId: "10008026", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
-      { productId: "10008089", nombre: "COCINA PIE GLP SOLE DUBAI 76CM" },
+      { productId: "10008026", codigo: "3120COSOL026V2", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
+      { productId: "10008089", codigo: "3120COSOL089V2", nombre: "COCINA PIE GLP SOLE DUBAI 76CM" },
     ]);
     const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
     expect(path).toContain("ProductCategoryID%20eq%20'SCP000000'");
@@ -64,20 +71,39 @@ describe("searchProducts", () => {
     expect(path).toContain("substringof('DUBAI',Description)".replace(/[()',]/g, (c) => encodeURIComponent(c)));
   });
 
-  it("tambien matchea por ProductID (busqueda por codigo, no solo por descripcion)", async () => {
+  /**
+   * El codigo que el cliente tiene en la boleta es el ExternalID
+   * ("3120COSOL026V2"), no el ProductID ("10008026", un correlativo interno
+   * que no aparece en ningun lado de cara al cliente). Buscar por ProductID,
+   * como se hacia antes, no daba ninguna coincidencia con lo que el cliente
+   * escribe (confirmado con el usuario contra Administracion de producto de
+   * C4C, 2026-08-17).
+   */
+  it("matchea por ExternalID, que es el codigo que el cliente ve", async () => {
     const client = clientPorCampo(
       [],
-      [{ ProductID: "10008026", Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }],
+      [{ ProductID: "10008026", ExternalID: "3120COSOL026V2", Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }],
     );
 
-    const result = await searchProducts("SCP000000", "10008026", client);
+    const result = await searchProducts("SCP000000", "3120COSOL026V2", client);
 
-    expect(result).toEqual([{ productId: "10008026", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }]);
+    expect(result).toEqual([
+      { productId: "10008026", codigo: "3120COSOL026V2", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
+    ]);
     const paths = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.map(([p]) => decodeURIComponent(p as string));
-    expect(paths.some((p) => p.includes("substringof('10008026',ProductID)"))).toBe(true);
+    expect(paths.some((p) => p.includes("substringof('3120COSOL026V2',ExternalID)"))).toBe(true);
   });
 
-  it("nunca combina Description y ProductID con 'or' en un mismo filtro (C4C lo rechaza con 500)", async () => {
+  it("busca en mayusculas: ExternalID distingue mayus/minus en C4C", async () => {
+    const client = clientPorCampo([], []);
+
+    await searchProducts("SCP000000", "3120cosol026v2", client);
+
+    const paths = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.map(([p]) => decodeURIComponent(p as string));
+    expect(paths.some((p) => p.includes("substringof('3120COSOL026V2',ExternalID)"))).toBe(true);
+  });
+
+  it("nunca combina Description y ExternalID con 'or' en un mismo filtro (C4C lo rechaza con 500)", async () => {
     // Regresion directa: el filtro con "or" rompio el buscador en produccion
     // el 2026-08-10 ("Operanden des logischen Operators '' sind nicht gultig").
     const client = clientPorCampo([], []);
@@ -90,15 +116,25 @@ describe("searchProducts", () => {
       expect(path).not.toContain(" or ");
     }
     expect(paths.some((p) => p.includes("substringof('DUBAI',Description)"))).toBe(true);
-    expect(paths.some((p) => p.includes("substringof('DUBAI',ProductID)"))).toBe(true);
+    expect(paths.some((p) => p.includes("substringof('DUBAI',ExternalID)"))).toBe(true);
   });
 
   it("deduplica por ProductID cuando un producto matchea por ambos campos", async () => {
-    const repetido = { ProductID: "10008026", Description: "RAPIDUCHA SOLE PRIME 5500W" };
+    const repetido = { ProductID: "10008026", ExternalID: "3121SOLRD5500V3C", Description: "RAPIDUCHA SOLE PRIME 5500W" };
     const client = clientPorCampo([repetido], [repetido]);
 
     const result = await searchProducts("SDH000000", "prime", client);
 
-    expect(result).toEqual([{ productId: "10008026", nombre: "RAPIDUCHA SOLE PRIME 5500W" }]);
+    expect(result).toEqual([
+      { productId: "10008026", codigo: "3121SOLRD5500V3C", nombre: "RAPIDUCHA SOLE PRIME 5500W" },
+    ]);
+  });
+
+  it("un producto sin ExternalID cargado se muestra con el ProductID en vez de sin codigo", async () => {
+    const client = clientPorCampo([{ ProductID: "10008026", Description: "COCINA SIN CODIGO EXTERNO" }], []);
+
+    const result = await searchProducts("SCP000000", "cocina", client);
+
+    expect(result).toEqual([{ productId: "10008026", codigo: "10008026", nombre: "COCINA SIN CODIGO EXTERNO" }]);
   });
 });

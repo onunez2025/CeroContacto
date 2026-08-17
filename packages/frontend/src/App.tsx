@@ -20,13 +20,28 @@ import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 import { Spinner } from "./Spinner.js";
 interface ProductoForm {
   numeroSerie: string;
+  /** ProductID interno de C4C ("10018698") - lo unico que se envia al backend. */
   productId: string;
   /** Solo para filtrar la busqueda en el frontend - no se envia al backend. */
   categoria: string;
+  /**
+   * ExternalID de C4C ("3121SOLRD5500V3C") - solo para mostrarlo al cliente
+   * junto a la descripcion. No se envia al backend: el ticket y el producto
+   * registrado se crean con productId.
+   */
+  productCodigo: string;
   productNombre: string;
   /** Data URLs (redimensionadas) - hasta 6 por producto. */
   fotos: string[];
 }
+const PRODUCTO_VACIO: ProductoForm = {
+  numeroSerie: "",
+  productId: "",
+  categoria: "",
+  productCodigo: "",
+  productNombre: "",
+  fotos: [],
+};
 const MAX_PRODUCTOS = 4;
 interface FormState {
   tipoDocumento: "RUC" | "DNI" | "CE";
@@ -71,7 +86,7 @@ const initialState: FormState = {
   numero: "",
   referencia: "",
   piso: "",
-  productos: [{ numeroSerie: "", productId: "", categoria: "", productNombre: "", fotos: [] }],
+  productos: [PRODUCTO_VACIO],
   fechaVisita: "",
   comentario: "",
   medioContacto: "whatsapp",
@@ -88,10 +103,16 @@ interface StoredProgress {
  * esperada de ProductoForm - sin esto, un item con forma inesperada
  * (ej. `fotos` ausente/no-array de una version anterior del formulario)
  * pasaria el chequeo de "es un array" pero rompería el render en cuanto
- * el usuario llegue al paso de Equipos (ProductoPicker hace
+ * el usuario llegue al paso de Productos (ProductoPicker hace
  * `fotos.length`, que lanza si `fotos` es `undefined`).
+ *
+ * `productCodigo` NO se exige: se agrego despues de que este formulario ya
+ * estaba en produccion, y un progreso guardado antes de ese cambio no lo
+ * tiene. Exigirlo descartaria el formulario entero de alguien que lo dejo a
+ * medias - se normaliza a "" en normalizeStoredProducto y el picker muestra
+ * solo la descripcion hasta que vuelva a elegir el modelo.
  */
-function isValidStoredProducto(item: unknown): item is ProductoForm {
+function isValidStoredProducto(item: unknown): boolean {
   if (!item || typeof item !== "object") return false;
   const p = item as Record<string, unknown>;
   return (
@@ -101,6 +122,14 @@ function isValidStoredProducto(item: unknown): item is ProductoForm {
     typeof p.productNombre === "string" &&
     Array.isArray(p.fotos)
   );
+}
+function normalizeStoredProducto(item: unknown): ProductoForm {
+  const p = item as Record<string, unknown>;
+  return {
+    ...PRODUCTO_VACIO,
+    ...p,
+    productCodigo: typeof p.productCodigo === "string" ? p.productCodigo : "",
+  } as ProductoForm;
 }
 /**
  * Lee el progreso guardado en localStorage, si existe, no tiene mas de
@@ -121,7 +150,7 @@ function loadStoredProgress(): FormState {
     const productos = Array.isArray(parsed.form.productos) &&
       parsed.form.productos.length > 0 &&
       parsed.form.productos.every(isValidStoredProducto)
-      ? parsed.form.productos
+      ? parsed.form.productos.map(normalizeStoredProducto)
       : initialState.productos;
     return { ...initialState, ...parsed.form, productos };
   } catch {
@@ -612,7 +641,7 @@ export default function App() {
     setForm((prev) =>
       prev.productos.length >= MAX_PRODUCTOS
         ? prev
-        : { ...prev, productos: [...prev.productos, { numeroSerie: "", productId: "", categoria: "", productNombre: "", fotos: [] }] },
+        : { ...prev, productos: [...prev.productos, PRODUCTO_VACIO] },
     );
   }
   function removeProducto(index: number) {
@@ -729,12 +758,18 @@ export default function App() {
               </ul>
               <p>No pudimos agendar estos productos:</p>
               <ul className="ticket-list">
-                {result.productosFallidos.map((id, index) => (
-                  // Dos equipos del mismo combo pueden compartir productId (ej.
-                  // 2 campanas identicas) - se agrega el indice para evitar
-                  // keys duplicadas en React cuando ambos fallan.
-                  <li key={`${id}-${index}`}>{form.productos.find((p) => p.productId === id)?.productNombre ?? id}</li>
-                ))}
+                {result.productosFallidos.map((id, index) => {
+                  // `id` es el ProductID interno de C4C, que no le dice nada al
+                  // cliente: se traduce al codigo + descripcion que el mismo
+                  // eligio. Dos productos del mismo combo pueden compartir
+                  // productId (ej. 2 campanas identicas) - se agrega el indice
+                  // para evitar keys duplicadas en React cuando ambos fallan.
+                  const producto = form.productos.find((p) => p.productId === id);
+                  const etiqueta = producto
+                    ? [producto.productCodigo, producto.productNombre].filter(Boolean).join(" - ")
+                    : "";
+                  return <li key={`${id}-${index}`}>{etiqueta || id}</li>;
+                })}
               </ul>
               <p className="muted">{result.errorMessage}</p>
               <p className="muted">
@@ -1108,10 +1143,13 @@ export default function App() {
                   idPrefix={`producto-${index}`}
                   categoria={producto.categoria}
                   productId={producto.productId}
+                  productCodigo={producto.productCodigo}
                   productNombre={producto.productNombre}
                   fotos={producto.fotos}
                   onCategoriaChange={(categoria) => patchProducto(index, { categoria })}
-                  onProductoChange={(productId, productNombre) => patchProducto(index, { productId, productNombre })}
+                  onProductoChange={(productId, productCodigo, productNombre) =>
+                    patchProducto(index, { productId, productCodigo, productNombre })
+                  }
                   onFotosChange={(fotos) => patchProducto(index, { fotos })}
                   productoError={fieldErrors[`productos.${index}.productId`]}
                   fotosError={fieldErrors[`productos.${index}.fotos`]}

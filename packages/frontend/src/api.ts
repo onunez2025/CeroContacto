@@ -76,7 +76,10 @@ export async function submitServiceRequest(payload: ServiceRequestSubmission): P
 }
 
 export interface ProductCatalogItem {
+  /** ProductID interno de C4C ("10018698") - lo que se envia al crear el ticket, nunca se muestra. */
   productId: string;
+  /** ExternalID de C4C ("3121SOLRD5500V3C") - el codigo que el cliente ve en su boleta. */
+  codigo: string;
   nombre: string;
 }
 

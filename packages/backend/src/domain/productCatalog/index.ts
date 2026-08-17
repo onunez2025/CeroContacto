@@ -37,6 +37,7 @@ const MAX_RESULTS = 20;
 
 interface ProductRow {
   ProductID: string;
+  ExternalID?: string;
   Description: string;
 }
 
@@ -48,11 +49,16 @@ interface ProductRow {
  * - fue la causa de que el buscador de productos dejara de responder.
  * Cada campo por separado si funciona, por eso searchProducts hace dos
  * consultas y las fusiona.
+ *
+ * `ExternalID` acepta substringof igual que `Description` (probado en vivo
+ * contra produccion el 2026-08-17, exacto y parcial). Es sensible a
+ * mayusculas - buscar 'solrd5500' devuelve 0 - pero searchProducts ya
+ * normaliza el texto a mayusculas antes de llegar aca.
  */
 async function searchByField(
   categoriaId: string,
   texto: string,
-  campo: "Description" | "ProductID",
+  campo: "Description" | "ExternalID",
   client: IC4CODataClient,
 ): Promise<ProductRow[]> {
   const filter = [
@@ -62,14 +68,22 @@ async function searchByField(
   ].join(" and ");
 
   return client.getCollection<ProductRow>(
-    `${NS}/ProductCollection?$filter=${encodeURIComponent(filter)}&$top=${MAX_RESULTS}&$select=ProductID,Description`,
+    `${NS}/ProductCollection?$filter=${encodeURIComponent(filter)}&$top=${MAX_RESULTS}&$select=ProductID,ExternalID,Description`,
   );
 }
 
 /**
  * Busca productos activos de una categoria por coincidencia parcial de
- * nombre O de codigo (autocompletado). Contra el cliente de catalogo
+ * descripcion O de codigo (autocompletado). Contra el cliente de catalogo
  * (produccion, solo lectura) - nunca se usa para crear nada.
+ *
+ * El "codigo" es `ExternalID` ("3121SOLRD5500V3C"), no `ProductID`: este
+ * ultimo es un correlativo interno ("10018698") que el cliente nunca ve.
+ * Buscar por ProductID, como se hacia antes, no servia de nada - el codigo
+ * que el cliente tiene en la boleta o en la etiqueta del producto es el
+ * ExternalID, y contra ProductID no daba ninguna coincidencia (confirmado
+ * con el usuario, 2026-08-17, comparando contra Administracion de producto
+ * en C4C).
  *
  * Las dos consultas van en paralelo y se fusionan aca, deduplicando por
  * ProductID (un producto puede matchear por ambos campos). Ver la nota de
@@ -86,7 +100,7 @@ export async function searchProducts(
   const texto = escapeODataString(trimmed.toUpperCase());
   const [porDescripcion, porCodigo] = await Promise.all([
     searchByField(categoriaId, texto, "Description", client),
-    searchByField(categoriaId, texto, "ProductID", client),
+    searchByField(categoriaId, texto, "ExternalID", client),
   ]);
 
   const vistos = new Set<string>();
@@ -94,7 +108,13 @@ export async function searchProducts(
   for (const row of [...porDescripcion, ...porCodigo]) {
     if (vistos.has(row.ProductID)) continue;
     vistos.add(row.ProductID);
-    fusionados.push({ productId: row.ProductID, nombre: row.Description });
+    fusionados.push({
+      productId: row.ProductID,
+      // Un producto sin ExternalID cargado igual se puede elegir; se muestra
+      // con el ProductID en vez de dejar el codigo en blanco.
+      codigo: row.ExternalID?.trim() || row.ProductID,
+      nombre: row.Description,
+    });
     if (fusionados.length === MAX_RESULTS) break;
   }
   return fusionados;

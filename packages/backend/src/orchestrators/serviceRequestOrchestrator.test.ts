@@ -11,6 +11,8 @@ const direccion = {
   direccion: "AV. EL SOL",
   numero: "555",
   referencia: "Frente al parque",
+  latitud: -12.0280400,
+  longitud: -76.9896220,
 };
 
 const submission: ServiceRequestSubmission = {
@@ -340,5 +342,26 @@ describe("runServiceRequestOrchestration", () => {
     }, postEntity);
 
     await expect(runServiceRequestOrchestration(comboSubmission, client)).rejects.toThrow("Timeout");
+  });
+
+  /**
+   * Los tickets creados por este formulario llegaban a C4C SIN coordenadas,
+   * mientras que los de la plataforma actual si las traen (verificado el
+   * 2026-08-18 sobre 8 tickets de prueba: todos con zLatitud_SDK vacio). El
+   * sufijo FSM de los campos del producto registrado es Field Service
+   * Management: sin coordenadas el tecnico no tiene como ubicar la casa.
+   */
+  it("envia al ticket las coordenadas del mapa", async () => {
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "TICKETOBJ", ID: "138320" });
+    const client = clientFromRouter(happyPathRouter, postEntity);
+
+    await runServiceRequestOrchestration(submission, client);
+
+    const cuerpos = postEntity.mock.calls.map(([, body]) => body as Record<string, unknown>);
+    const ticket = cuerpos.find((c) => c && "ProcessingTypeCode" in c);
+
+    // C4C los guarda como texto con punto decimal, igual que los registros existentes.
+    expect(ticket?.zLatitud_SDK).toBe("-12.0280400");
+    expect(ticket?.zLongitud_SDK).toBe("-76.9896220");
   });
 });

@@ -1,3 +1,4 @@
+import { formatearCoordenada } from "../coordenadas.js";
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { and, eq } from "@cerocontacto/c4c-client";
 import { PERU_DISTRITOS } from "@cerocontacto/shared";
@@ -142,6 +143,11 @@ export async function resolveRegisteredProduct(
     // en RegisteredProduct (confirmado via $metadata, 2026-07-24); si en el futuro se agrega el
     // campo alla, se puede reintroducir aqui.
     PostalCode: input.direccion.codigoPostal,
+    // Coordenadas del mapa. Son los campos que consume Field Service
+    // Management para que el tecnico ubique la casa; C4C los guarda como
+    // texto, con el punto como separador decimal.
+    zaLatitudFSM_KUT: formatearCoordenada(input.direccion.latitud),
+    zaLongitudFSM_KUT: formatearCoordenada(input.direccion.longitud),
     TimeZoneCode: "UTC-5",
     Floor: input.direccion.piso ?? "",
     RegisteredProductPartyInformation: [{ RoleCode: OWNER_ROLE_CODE, PartyID: input.buyerPartyId }],

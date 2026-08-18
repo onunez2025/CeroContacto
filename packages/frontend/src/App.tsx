@@ -18,6 +18,7 @@ import { FieldError } from "./FieldError.js";
 import { LugarCompraPicker } from "./LugarCompraPicker.js";
 import { acomodarParaDesplegable, convieneAbrirHaciaArriba, soltarEspacioDesplegable } from "./mobileScroll.js";
 import { ProductoPicker } from "./ProductoPicker.js";
+import { UbicacionPicker } from "./UbicacionPicker.js";
 import { FechaDisponibleCalendar } from "./FechaDisponibleCalendar.js";
 import { Spinner } from "./Spinner.js";
 interface ProductoForm {
@@ -60,6 +61,9 @@ interface FormState {
   numero: string;
   referencia: string;
   piso: string;
+  /** Coordenadas del punto marcado en el mapa; undefined hasta que el cliente lo marque. */
+  latitud?: number;
+  longitud?: number;
   /** 1 producto principal + hasta 3 adicionales (combo cocina+horno+campana, etc). */
   productos: ProductoForm[];
   fechaVisita: string;
@@ -187,6 +191,8 @@ function buildSubmission(form: FormState): unknown {
       direccion: form.direccion.trim(),
       numero: form.numero.trim(),
       referencia: form.referencia.trim(),
+      latitud: form.latitud ?? 0,
+      longitud: form.longitud ?? 0,
       ...(form.piso.trim() ? { piso: form.piso.trim() } : {}),
     },
     productos: form.productos.map((p) => ({
@@ -782,6 +788,9 @@ export default function App() {
       if (vacio(form.numero)) faltan.push("Número");
       if (vacio(form.codigoPostal)) faltan.push("Código postal");
       if (vacio(form.referencia)) faltan.push("Referencia");
+      // El punto del mapa es obligatorio: es lo unico que le permite al tecnico
+      // ubicar la casa, y sin el el ticket vuelve a llegar a C4C sin coordenadas.
+      if (form.latitud === undefined || form.longitud === undefined) faltan.push("Ubicación en el mapa");
     }
 
     if (paso === 3) {
@@ -1286,6 +1295,12 @@ export default function App() {
               <label htmlFor="piso">Piso / dpto. (opcional)</label>
               <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", aMayusculas(e.target.value))} />
             </div>
+            <UbicacionPicker
+              latitud={form.latitud}
+              longitud={form.longitud}
+              onChange={(latitud, longitud) => setForm((prev) => ({ ...prev, latitud, longitud }))}
+              error={fieldErrors["direccion.latitud"] ?? fieldErrors["direccion.longitud"]}
+            />
             {avisoPaso ? <p className="aviso-paso">{avisoPaso}</p> : null}
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(1)}>

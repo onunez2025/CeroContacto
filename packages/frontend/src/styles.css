@@ -428,6 +428,56 @@ select:disabled {
   margin: 1rem 0;
 }
 
+/* Mapa para marcar la ubicacion exacta (pedido de Daisy y Ronny). */
+.mapa {
+  height: 300px;
+  width: 100%;
+  margin-top: 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  /* Leaflet posiciona sus capas en absoluto; sin esto se salen del borde. */
+  overflow: hidden;
+  /* El mapa se arrastra con el dedo: sin esto el gesto lo captura la pagina. */
+  touch-action: none;
+  z-index: 0;
+}
+
+@media (max-width: 560px) {
+  .mapa {
+    height: 240px;
+  }
+}
+
+.mapa__boton {
+  width: auto;
+  margin-top: 0.6rem;
+}
+
+.mapa__coordenadas {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaflet trae sus botones de zoom en 30px; se llevan al mismo minimo tactil
+   de 44px que el resto del formulario. */
+.mapa .leaflet-control-zoom a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  font-size: 1.3rem;
+}
+
+/* Pin dibujado con CSS: los PNG por defecto de Leaflet se rompen al empaquetar. */
+.mapa__pin-punto {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 3px;
+  border-radius: 50%;
+  background: var(--error);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
 .checkbox-row {
   display: flex;
   align-items: flex-start;

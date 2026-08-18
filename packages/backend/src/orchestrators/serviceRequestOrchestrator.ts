@@ -139,6 +139,8 @@ export async function runServiceRequestOrchestration(
             fechaVisita: submission.fechaVisita,
             provincia: submission.direccion.provincia,
             distrito: submission.direccion.distrito,
+            latitud: submission.direccion.latitud,
+            longitud: submission.direccion.longitud,
             comentario: comentarioParaC4C,
           },
           client,

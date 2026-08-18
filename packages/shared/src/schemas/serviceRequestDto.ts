@@ -35,6 +35,23 @@ export const AddressSchema = z.object({
    */
   referencia: z.string().min(1, "Referencia requerida").max(40),
   referenciaAdicional: z.string().max(200).optional(),
+  /**
+   * Coordenadas del punto que el cliente marco en el mapa.
+   *
+   * Van a C4C como zLatitud_SDK/zLongitud_SDK del ticket y
+   * zaLatitudFSM_KUT/zaLongitudFSM_KUT del producto registrado - campos que ya
+   * existen y que la plataforma actual ya llena, pero que los tickets creados
+   * por este formulario dejaban VACIOS (verificado el 2026-08-18 sobre los 8
+   * tickets de prueba). El sufijo FSM es Field Service Management: sin esto el
+   * tecnico no tiene como ubicar la casa.
+   *
+   * Se valida el rango de Peru y no solo "es un numero": una coordenada de
+   * otro continente casi siempre significa que el mapa quedo en su posicion
+   * por defecto y el cliente nunca movio el pin. Peru va de ~0 a -18.4 de
+   * latitud y de ~-68.6 a -81.4 de longitud; se toma un margen.
+   */
+  latitud: z.number().min(-19, "Ubicacion fuera de Peru").max(0.5, "Ubicacion fuera de Peru"),
+  longitud: z.number().min(-82, "Ubicacion fuera de Peru").max(-68, "Ubicacion fuera de Peru"),
   /** Mapea a Floor, MaxLength 10 en ambos destinos (cliente y producto registrado). */
   piso: z.string().max(10).optional(),
 });

@@ -9,6 +9,8 @@ const direccion = {
   direccion: "AV. EL SOL",
   numero: "555",
   referencia: "Frente al parque",
+  latitud: -12.0280400,
+  longitud: -76.9896220,
 };
 
 const productos = [{ numeroSerie: "TDM5524083854", productId: "10054511" }];
@@ -235,5 +237,26 @@ describe("ServiceRequestSubmissionSchema", () => {
       apellidos: "SEBASTIANI RUBIO",
     });
     expect(result.success).toBe(false);
+  });
+
+  /**
+   * Una coordenada de otro continente casi siempre significa que el mapa quedo
+   * en su posicion por defecto y el cliente nunca movio el pin - el ticket
+   * llegaria a C4C con un punto que manda al tecnico a otro pais.
+   */
+  it("rechaza coordenadas fuera de Peru", () => {
+    const dni = { ...baseCommon, tipoDocumento: "DNI", numeroDocumento: "15619884", nombres: "ALVARO", apellidos: "SEBASTIANI" };
+    const madrid = { ...dni, direccion: { ...direccion, latitud: 40.4168, longitud: -3.7038 } };
+
+    const r = ServiceRequestSubmissionSchema.safeParse(madrid);
+
+    expect(r.success).toBe(false);
+  });
+
+  it("acepta coordenadas de Peru", () => {
+    const dni = { ...baseCommon, tipoDocumento: "DNI", numeroDocumento: "15619884", nombres: "ALVARO", apellidos: "SEBASTIANI" };
+    const arequipa = { ...dni, direccion: { ...direccion, latitud: -16.409, longitud: -71.537 } };
+
+    expect(ServiceRequestSubmissionSchema.safeParse(arequipa).success).toBe(true);
   });
 });

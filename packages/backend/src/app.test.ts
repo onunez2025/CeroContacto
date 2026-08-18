@@ -46,6 +46,8 @@ const direccion = {
   direccion: "AV. EL SOL",
   numero: "555",
   referencia: "Frente al parque",
+  latitud: -12.0280400,
+  longitud: -76.9896220,
 };
 
 const validBody = {

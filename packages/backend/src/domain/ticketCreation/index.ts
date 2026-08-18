@@ -1,6 +1,7 @@
 import type { IC4CODataClient } from "@cerocontacto/c4c-client";
 import { SERVICE_AREA_ID, SERVICE_TYPE_ID } from "../cuposEngine/types.js";
 import type { ServiceRequestRecord, TicketCreationInput, TicketCreationResult } from "./types.js";
+import { formatearCoordenada } from "../coordenadas.js";
 
 export * from "./types.js";
 
@@ -74,6 +75,11 @@ export async function createTicket(
     RequestInitialReceiptdatetimecontent: input.fechaVisita,
     zTicketIDProvinciacontent_SDK: input.provincia,
     zTicketIDDistritocontent_SDK: input.distrito,
+    // Coordenadas del mapa: la plataforma actual ya las envia, y los tickets
+    // creados por este formulario llegaban vacios (verificado el 2026-08-18
+    // sobre los 8 tickets de prueba). Sin esto el tecnico no ubica la casa.
+    zLatitud_SDK: formatearCoordenada(input.latitud),
+    zLongitud_SDK: formatearCoordenada(input.longitud),
     // Campos del contratista/region asignados por el motor de cupos - se
     // omiten por completo (no se envian ni vacios) mientras ese motor este
     // deshabilitado, ver nota en TicketCreationInput. zaRegionFSM_ID_KUT en

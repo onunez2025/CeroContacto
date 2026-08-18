@@ -12,6 +12,8 @@ const direccion: Address = {
   direccion: "AV. EL SOL",
   numero: "555",
   referencia: "Frente al parque",
+  latitud: -12.0280400,
+  longitud: -76.9896220,
 };
 
 const input: RegisteredProductInput = {
@@ -152,6 +154,23 @@ describe("resolveRegisteredProduct", () => {
     const result = await resolveRegisteredProduct(input, client);
 
     expect(result.installationPointId).toBe("222");
+  });
+
+  /**
+   * Los productos registrados creados por este formulario llegaban a C4C sin
+   * coordenadas. El sufijo FSM es Field Service Management: son los campos que
+   * consume la app del tecnico para ubicar la casa.
+   */
+  it("guarda las coordenadas del mapa en los campos FSM", async () => {
+    const postEntity = vi.fn().mockResolvedValue({ ObjectID: "NEWOBJ", ID: "420999" });
+    const client = mockClient({ postEntity });
+
+    await resolveRegisteredProduct(input, client);
+
+    const [, body] = postEntity.mock.calls[0] as [string, Record<string, unknown>];
+    // Texto con punto decimal y 7 decimales, igual que los registros existentes.
+    expect(body.zaLatitudFSM_KUT).toBe("-12.0280400");
+    expect(body.zaLongitudFSM_KUT).toBe("-76.9896220");
   });
 
   it("crea el producto registrado asociado al buyerPartyId cuando no hay match", async () => {

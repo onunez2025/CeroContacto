@@ -29,6 +29,10 @@ export interface TicketCreationInput {
   provincia: string;
   /** zTicketIDDistritocontent_SDK. */
   distrito: string;
+  /** zLatitud_SDK - punto que el cliente marco en el mapa. */
+  latitud: number;
+  /** zLongitud_SDK. */
+  longitud: number;
   /** ServiceIssueCategoryID - por defecto SERVICE_TYPE_ID (instalacion). */
   serviceIssueCategoryId?: string;
   /**

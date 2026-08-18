@@ -83,9 +83,9 @@ export interface ProductCatalogItem {
   nombre: string;
 }
 
-/** Autocompletado de modelo dentro de una categoria - consulta el catalogo real (C4C produccion, solo lectura). */
-export async function searchProducts(categoriaId: string, query: string): Promise<ProductCatalogItem[]> {
-  const params = new URLSearchParams({ categoria: categoriaId, q: query });
+/** Autocompletado de modelo por codigo o descripcion - catalogo real de C4C (produccion, solo lectura). */
+export async function searchProducts(query: string): Promise<ProductCatalogItem[]> {
+  const params = new URLSearchParams({ q: query });
   const res = await fetch(`/api/productos?${params.toString()}`);
   const body = (await res.json().catch(() => undefined)) as
     | { productos?: ProductCatalogItem[]; error?: string }

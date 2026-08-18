@@ -26,7 +26,18 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
   { id: "SNT000000", nombre: "Campanas decorativas" },
 ];
 
-const CATEGORY_IDS = new Set(PRODUCT_CATEGORIES.map((c) => c.id));
+/**
+ * Acota la busqueda a las categorias instalables con un OR entre los 9
+ * codigos. C4C SI acepta "or" entre valores del MISMO campo (confirmado en
+ * vivo, ~1.3s); lo que rechaza es combinar campos DISTINTOS - ver la nota
+ * de searchByField.
+ *
+ * Sigue haciendo falta aunque el cliente ya no elija categoria: sin el, la
+ * misma busqueda devuelve despiece y repuestos ("DESPIECE RAP. PRIME",
+ * "CARCASA RAPIDUCHA PRIME"), que no son instalables.
+ */
+const FILTRO_CATEGORIAS_INSTALABLES =
+  "(" + PRODUCT_CATEGORIES.map((c) => `ProductCategoryID eq '${c.id}'`).join(" or ") + ")";
 
 function escapeODataString(value: string): string {
   return value.replace(/'/g, "''");
@@ -56,16 +67,11 @@ interface ProductRow {
  * normaliza el texto a mayusculas antes de llegar aca.
  */
 async function searchByField(
-  categoriaId: string,
   texto: string,
   campo: "Description" | "ExternalID",
   client: IC4CODataClient,
 ): Promise<ProductRow[]> {
-  const filter = [
-    `ProductCategoryID eq '${escapeODataString(categoriaId)}'`,
-    `Status eq '2'`,
-    `substringof('${texto}',${campo})`,
-  ].join(" and ");
+  const filter = [FILTRO_CATEGORIAS_INSTALABLES, `Status eq '2'`, `substringof('${texto}',${campo})`].join(" and ");
 
   return client.getCollection<ProductRow>(
     `${NS}/ProductCollection?$filter=${encodeURIComponent(filter)}&$top=${MAX_RESULTS}&$select=ProductID,ExternalID,Description`,
@@ -89,18 +95,14 @@ async function searchByField(
  * ProductID (un producto puede matchear por ambos campos). Ver la nota de
  * searchByField sobre por que no se resuelve con un solo $filter.
  */
-export async function searchProducts(
-  categoriaId: string,
-  query: string,
-  client: IC4CODataClient,
-): Promise<ProductCatalogItem[]> {
+export async function searchProducts(query: string, client: IC4CODataClient): Promise<ProductCatalogItem[]> {
   const trimmed = query.trim();
-  if (!CATEGORY_IDS.has(categoriaId) || trimmed.length < 2) return [];
+  if (trimmed.length < 2) return [];
 
   const texto = escapeODataString(trimmed.toUpperCase());
   const [porDescripcion, porCodigo] = await Promise.all([
-    searchByField(categoriaId, texto, "Description", client),
-    searchByField(categoriaId, texto, "ExternalID", client),
+    searchByField(texto, "Description", client),
+    searchByField(texto, "ExternalID", client),
   ]);
 
   const vistos = new Set<string>();

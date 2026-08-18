@@ -81,18 +81,25 @@ export function createApp(): Express {
     res.status(200).json({ categorias: PRODUCT_CATEGORIES });
   });
 
+  /**
+   * El cliente ya no elige categoria (observacion 2, desestimada por el
+   * usuario el 2026-08-18): las categorias de C4C tienen descripciones que
+   * no corresponden con el producto - un purificador figura como
+   * "M-FILTROS - SOLE" - y hay duplicados habilitados/sin habilitar con
+   * productos activos en ambos. La busqueda sigue acotada a las 9
+   * categorias instalables, pero del lado del servidor.
+   */
   app.get("/api/productos", async (req, res) => {
-    const categoria = typeof req.query.categoria === "string" ? req.query.categoria : "";
     const q = typeof req.query.q === "string" ? req.query.q : "";
 
-    if (!categoria || !q) {
+    if (!q) {
       res.status(200).json({ productos: [] });
       return;
     }
 
     try {
       const client = buildProductCatalogClientFromEnv();
-      const productos = await searchProducts(categoria, q, client);
+      const productos = await searchProducts(q, client);
       res.status(200).json({ productos });
     } catch (err) {
       console.error("productos_search_failed", err);

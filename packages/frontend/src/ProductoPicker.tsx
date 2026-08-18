@@ -4,22 +4,18 @@ import { ApiError, searchProducts, type ProductCatalogItem } from "./api.js";
 import { FieldError } from "./FieldError.js";
 import { acomodarParaDesplegable, convieneAbrirHaciaArriba, soltarEspacioDesplegable } from "./mobileScroll.js";
 import { resizeImageToDataUrl } from "./imageResize.js";
-import { PRODUCT_CATEGORIES } from "./productCategories.js";
 import { Spinner } from "./Spinner.js";
 
 const MAX_FOTOS = 6;
 
 interface ProductoPickerProps {
   idPrefix: string;
-  categoria: string;
   productId: string;
   productCodigo: string;
   productNombre: string;
   fotos: string[];
-  onCategoriaChange: (categoria: string) => void;
   onProductoChange: (productId: string, codigo: string, nombre: string) => void;
   onFotosChange: (fotos: string[]) => void;
-  categoriaError?: string;
   productoError?: string;
   fotosError?: string;
 }
@@ -40,22 +36,20 @@ function formatProductLabel(codigo: string, nombre: string): string {
 }
 
 /**
- * Selector de producto en 2 pasos: categoria (fija, 9 tipos vendibles) y
- * luego autocompletado por descripcion o codigo contra el catalogo real de
- * C4C (produccion, solo lectura) - reemplaza el campo libre de "codigo de
- * producto" para que el cliente no tenga que saber el codigo exacto.
+ * Buscador de producto por codigo o descripcion contra el catalogo real de
+ * C4C (produccion, solo lectura). El selector de categoria se elimino
+ * (observacion 2): las categorias de C4C no describen bien al producto y hay
+ * duplicados habilitados/sin habilitar. El acotado a categorias instalables
+ * ahora vive en el backend.
  */
 export function ProductoPicker({
   idPrefix,
-  categoria,
   productId,
   productCodigo,
   productNombre,
   fotos,
-  onCategoriaChange,
   onProductoChange,
   onFotosChange,
-  categoriaError,
   productoError,
   fotosError,
 }: ProductoPickerProps) {
@@ -85,7 +79,7 @@ export function ProductoPicker({
     if (productId) onProductoChange("", "", "");
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (!categoria || value.trim().length < 2) {
+    if (value.trim().length < 2) {
       setResults([]);
       setSearchError(null);
       setOpen(false);
@@ -97,7 +91,7 @@ export function ProductoPicker({
       setLoading(true);
       setSearchError(null);
       abrirLista();
-      searchProducts(categoria, value)
+      searchProducts(value)
         .then((items) => {
           setResults(items);
           abrirLista();
@@ -164,28 +158,6 @@ export function ProductoPicker({
   return (
     <>
       <div className="field">
-        <label htmlFor={`${idPrefix}-categoria`}>Tipo de producto</label>
-        <select
-          id={`${idPrefix}-categoria`}
-          value={categoria}
-          onChange={(e) => {
-            onCategoriaChange(e.target.value);
-            onProductoChange("", "", "");
-            setQuery("");
-            setResults([]);
-          }}
-        >
-          <option value="">Selecciona el tipo de producto</option>
-          {PRODUCT_CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-        <FieldError message={categoriaError} />
-      </div>
-
-      <div className="field">
         <label htmlFor={`${idPrefix}-modelo`}>Modelo</label>
         <div className={`autocomplete${abreArriba ? " abre-arriba" : ""}`}>
           <input
@@ -193,8 +165,7 @@ export function ProductoPicker({
             id={`${idPrefix}-modelo`}
             type="text"
             autoComplete="off"
-            placeholder={categoria ? "Escribe el código o la descripción del modelo..." : "Primero selecciona el tipo de producto"}
-            disabled={!categoria}
+            placeholder="Escribe el código o la descripción del modelo..."
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => {

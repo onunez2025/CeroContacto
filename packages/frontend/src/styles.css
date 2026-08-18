@@ -230,6 +230,23 @@ h1 {
   transition: width 0.3s ease;
 }
 
+/* Aviso de campos faltantes, sobre los botones del paso (observacion 23). */
+.aviso-paso {
+  margin: 1.2rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-control);
+  background: #fdecea;
+  border: 1px solid var(--error);
+  color: var(--error);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.steps__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .step-actions {
   display: flex;
   gap: 0.8rem;

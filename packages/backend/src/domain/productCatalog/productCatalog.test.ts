@@ -32,21 +32,32 @@ function clientPorCampo(porDescripcion: Row[], porCodigo: Row[]): IC4CODataClien
 }
 
 describe("searchProducts", () => {
-  it("devuelve [] si la categoria no es una de las conocidas", async () => {
-    const client = clientReturning([{ ProductID: "1", Description: "COCINA DUBAI" }]);
-    const result = await searchProducts("CATEGORIA-INVENTADA", "dubai", client);
-    expect(result).toEqual([]);
-    expect(client.getCollection).not.toHaveBeenCalled();
+  /**
+   * El cliente ya no elige categoria (observacion 2, 2026-08-18). El acotado
+   * a las 9 categorias instalables pasa a ser interno: sin el, la misma
+   * busqueda devolveria despiece y repuestos ("DESPIECE RAP. PRIME").
+   */
+  it("acota siempre a las 9 categorias instalables aunque el cliente no elija ninguna", async () => {
+    const client = clientPorCampo([], []);
+
+    await searchProducts("dubai", client);
+
+    const paths = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.map(([p]) => decodeURIComponent(p as string));
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain("ProductCategoryID eq 'SCE000000'");
+      expect(path).toContain("ProductCategoryID eq 'SNT000000'");
+    }
   });
 
   it("devuelve [] si la busqueda tiene menos de 2 caracteres", async () => {
     const client = clientReturning([{ ProductID: "1", Description: "COCINA DUBAI" }]);
-    const result = await searchProducts("SCP000000", "d", client);
+    const result = await searchProducts("d", client);
     expect(result).toEqual([]);
     expect(client.getCollection).not.toHaveBeenCalled();
   });
 
-  it("mapea ProductID/ExternalID/Description y filtra por categoria + activo + nombre", async () => {
+  it("mapea ProductID/ExternalID/Description y filtra por activo + nombre", async () => {
     const client = clientPorCampo(
       [
         {
@@ -59,14 +70,13 @@ describe("searchProducts", () => {
       [],
     );
 
-    const result = await searchProducts("SCP000000", "dubai", client);
+    const result = await searchProducts("dubai", client);
 
     expect(result).toEqual([
       { productId: "10008026", codigo: "3120COSOL026V2", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
       { productId: "10008089", codigo: "3120COSOL089V2", nombre: "COCINA PIE GLP SOLE DUBAI 76CM" },
     ]);
-    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
-    expect(path).toContain("ProductCategoryID%20eq%20'SCP000000'");
+    const [path] = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
     expect(path).toContain("Status%20eq%20'2'");
     expect(path).toContain("substringof('DUBAI',Description)".replace(/[()',]/g, (c) => encodeURIComponent(c)));
   });
@@ -85,7 +95,7 @@ describe("searchProducts", () => {
       [{ ProductID: "10008026", ExternalID: "3120COSOL026V2", Description: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" }],
     );
 
-    const result = await searchProducts("SCP000000", "3120COSOL026V2", client);
+    const result = await searchProducts("3120COSOL026V2", client);
 
     expect(result).toEqual([
       { productId: "10008026", codigo: "3120COSOL026V2", nombre: "COCINA PIE GLP SOLE CLASSIC DUBAI 76CM" },
@@ -97,7 +107,7 @@ describe("searchProducts", () => {
   it("busca en mayusculas: ExternalID distingue mayus/minus en C4C", async () => {
     const client = clientPorCampo([], []);
 
-    await searchProducts("SCP000000", "3120cosol026v2", client);
+    await searchProducts("3120cosol026v2", client);
 
     const paths = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.map(([p]) => decodeURIComponent(p as string));
     expect(paths.some((p) => p.includes("substringof('3120COSOL026V2',ExternalID)"))).toBe(true);
@@ -108,12 +118,16 @@ describe("searchProducts", () => {
     // el 2026-08-10 ("Operanden des logischen Operators '' sind nicht gultig").
     const client = clientPorCampo([], []);
 
-    await searchProducts("SCP000000", "dubai", client);
+    await searchProducts("dubai", client);
 
     const paths = (client.getCollection as ReturnType<typeof vi.fn>).mock.calls.map(([p]) => decodeURIComponent(p as string));
     expect(paths).toHaveLength(2);
+    // Lo prohibido es combinar los dos CAMPOS de texto en un mismo filtro. El
+    // "or" entre valores de ProductCategoryID si lo acepta C4C y es el que
+    // acota a las categorias instalables.
     for (const path of paths) {
-      expect(path).not.toContain(" or ");
+      expect(path).not.toContain("Description) or ");
+      expect(path).not.toContain("ExternalID) or ");
     }
     expect(paths.some((p) => p.includes("substringof('DUBAI',Description)"))).toBe(true);
     expect(paths.some((p) => p.includes("substringof('DUBAI',ExternalID)"))).toBe(true);
@@ -123,7 +137,7 @@ describe("searchProducts", () => {
     const repetido = { ProductID: "10008026", ExternalID: "3121SOLRD5500V3C", Description: "RAPIDUCHA SOLE PRIME 5500W" };
     const client = clientPorCampo([repetido], [repetido]);
 
-    const result = await searchProducts("SDH000000", "prime", client);
+    const result = await searchProducts("prime", client);
 
     expect(result).toEqual([
       { productId: "10008026", codigo: "3121SOLRD5500V3C", nombre: "RAPIDUCHA SOLE PRIME 5500W" },
@@ -133,7 +147,7 @@ describe("searchProducts", () => {
   it("un producto sin ExternalID cargado se muestra con el ProductID en vez de sin codigo", async () => {
     const client = clientPorCampo([{ ProductID: "10008026", Description: "COCINA SIN CODIGO EXTERNO" }], []);
 
-    const result = await searchProducts("SCP000000", "cocina", client);
+    const result = await searchProducts("cocina", client);
 
     expect(result).toEqual([{ productId: "10008026", codigo: "10008026", nombre: "COCINA SIN CODIGO EXTERNO" }]);
   });

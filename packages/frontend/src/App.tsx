@@ -24,8 +24,6 @@ interface ProductoForm {
   numeroSerie: string;
   /** ProductID interno de C4C ("10018698") - lo unico que se envia al backend. */
   productId: string;
-  /** Solo para filtrar la busqueda en el frontend - no se envia al backend. */
-  categoria: string;
   /**
    * ExternalID de C4C ("3121SOLRD5500V3C") - solo para mostrarlo al cliente
    * junto a la descripcion. No se envia al backend: el ticket y el producto
@@ -39,7 +37,6 @@ interface ProductoForm {
 const PRODUCTO_VACIO: ProductoForm = {
   numeroSerie: "",
   productId: "",
-  categoria: "",
   productCodigo: "",
   productNombre: "",
   fotos: [],
@@ -120,7 +117,6 @@ function isValidStoredProducto(item: unknown): boolean {
   return (
     typeof p.numeroSerie === "string" &&
     typeof p.productId === "string" &&
-    typeof p.categoria === "string" &&
     typeof p.productNombre === "string" &&
     Array.isArray(p.fotos)
   );
@@ -250,13 +246,18 @@ const STEPS: StepDef[] = [
   { n: 3, label: "Productos" },
   { n: 4, label: "Fecha" },
 ];
+/**
+ * Retroceder es libre; saltar hacia ADELANTE desde la barra de pasos se
+ * bloquea: avanzar es siempre por el boton Siguiente, que valida el paso
+ * (observacion 23). Si no, el circulo numerado seria un atajo para esquivarlo.
+ */
 function StepHeader({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
   return (
     <>
       <ol className="steps">
         {STEPS.map((s) => (
           <li key={s.n} className={`steps__item ${s.n === current ? "is-current" : ""} ${s.n < current ? "is-done" : ""}`}>
-            <button type="button" className="steps__button" onClick={() => onSelect(s.n)}>
+            <button type="button" className="steps__button" onClick={() => onSelect(s.n)} disabled={s.n > current}>
               <span className="steps__circle">{s.n}</span>
               <span className="steps__label">{s.label}</span>
             </button>
@@ -287,6 +288,20 @@ function sanitizeDigits(value: string, maxLen: number): string {
  * salir del campo, para que el nombre nunca llegue a C4C con digitos o
  * simbolos que el asesor tenga que limpiar a mano.
  */
+/**
+ * Pasa a mayusculas lo que escribe el cliente (observacion 22). C4C guarda
+ * los datos asi - "ALVARO MIGUEL", "AV. EL SOL" - y hasta ahora dependia de
+ * como lo tipeara cada uno: en las pruebas quedo registrado
+ * "DAISY raquel ROMERO HUAMANI".
+ *
+ * NO se aplica al email (las direcciones se escriben en minuscula por
+ * convencion y en mayuscula se ven como un error) ni al comentario libre,
+ * que en mayusculas se lee como un grito y le cuesta mas al asesor.
+ */
+function aMayusculas(value: string): string {
+  return value.toUpperCase();
+}
+
 function sanitizeLetters(value: string, maxLen: number): string {
   return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]/g, "").slice(0, maxLen);
 }
@@ -453,7 +468,7 @@ export default function App() {
   function sanitizeDocumento(tipo: FormState["tipoDocumento"], value: string): string {
     if (tipo === "DNI") return sanitizeDigits(value, 8);
     if (tipo === "RUC") return sanitizeDigits(value, 11);
-    return sanitizeAlphanumeric(value, 12);
+    return sanitizeAlphanumeric(value, 12).toUpperCase();
   }
   /**
    * Cambiar el tipo de documento invalida el numero ya escrito (11 digitos
@@ -643,7 +658,72 @@ export default function App() {
       setPostalHighlightedIndex(-1);
     }
   }
+  /**
+   * Campos obligatorios de cada paso, con su validacion (observacion 23).
+   * Antes se podia avanzar con el paso vacio y el error recien aparecia al
+   * enviar, saltando hacia atras varios pasos.
+   *
+   * Es la MISMA regla que el schema Zod de shared, escrita aca para poder
+   * evaluarla en vivo mientras el cliente escribe. El schema sigue siendo el
+   * autoritativo al enviar: esto solo evita que llegue hasta el final con
+   * datos que igual iban a ser rechazados.
+   */
+  function faltantesDelPaso(paso: number): string[] {
+    const faltan: string[] = [];
+    const vacio = (v: string) => !v.trim();
+
+    if (paso === 1) {
+      if (!DOCUMENT_VALIDATORS[form.tipoDocumento](form.numeroDocumento.trim())) faltan.push("Número de documento");
+      if (form.tipoDocumento === "RUC") {
+        if (vacio(form.razonSocial)) faltan.push("Razón social");
+      } else {
+        if (vacio(form.nombres)) faltan.push("Nombres");
+        if (vacio(form.apellidos)) faltan.push("Apellidos");
+      }
+      if (!PHONE_FORMAT_REGEX.test(form.telefono.trim())) faltan.push("Teléfono");
+      if (!EMAIL_FORMAT_REGEX.test(form.email.trim())) faltan.push("Email");
+      if (vacio(form.lugarCompra)) faltan.push("Tienda donde compró");
+    }
+
+    if (paso === 2) {
+      if (vacio(form.departamento)) faltan.push("Departamento");
+      if (vacio(form.provincia)) faltan.push("Provincia");
+      if (vacio(form.distrito)) faltan.push("Distrito");
+      if (vacio(form.direccion) || form.direccion.trim().length < 3) faltan.push("Dirección");
+      if (vacio(form.numero)) faltan.push("Número");
+      if (vacio(form.codigoPostal)) faltan.push("Código postal");
+      if (vacio(form.referencia)) faltan.push("Referencia");
+    }
+
+    if (paso === 3) {
+      // Se exige modelo en TODOS los productos agregados, no solo en el
+      // primero: un adicional a medio llenar hace fallar el envio entero.
+      const sinModelo = form.productos.filter((p) => vacio(p.productId)).length;
+      if (sinModelo > 0) faltan.push(sinModelo === 1 ? "Modelo del producto" : `Modelo de ${sinModelo} productos`);
+    }
+
+    return faltan;
+  }
+
+  /** Mensaje bajo el boton cuando el paso todavia no esta completo. */
+  const [avisoPaso, setAvisoPaso] = useState<string | null>(null);
+
+  /**
+   * Avanza solo si el paso actual esta completo. Si falta algo, no navega y
+   * nombra los campos concretos en vez de un "revisa el formulario" generico.
+   */
+  function intentarAvanzar(desde: number, hacia: number) {
+    const faltan = faltantesDelPaso(desde);
+    if (faltan.length > 0) {
+      setAvisoPaso(`Completa antes de continuar: ${faltan.join(", ")}.`);
+      return;
+    }
+    setAvisoPaso(null);
+    goToStep(hacia);
+  }
+
   function goToStep(next: number) {
+    setAvisoPaso(null);
     setStep(next);
     document.querySelector(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -861,7 +941,7 @@ export default function App() {
                   type="text"
                   maxLength={40}
                   value={form.razonSocial}
-                  onChange={(e) => update("razonSocial", e.target.value)}
+                  onChange={(e) => update("razonSocial", aMayusculas(e.target.value))}
                 />
                 <FieldError message={fieldErrors.razonSocial} />
               </div>
@@ -874,7 +954,7 @@ export default function App() {
                     type="text"
                     maxLength={40}
                     value={form.nombres}
-                    onChange={(e) => update("nombres", sanitizeLetters(e.target.value, 40))}
+                    onChange={(e) => update("nombres", aMayusculas(sanitizeLetters(e.target.value, 40)))}
                   />
                   <FieldError message={fieldErrors.nombres} />
                 </div>
@@ -885,7 +965,7 @@ export default function App() {
                     type="text"
                     maxLength={40}
                     value={form.apellidos}
-                    onChange={(e) => update("apellidos", sanitizeLetters(e.target.value, 40))}
+                    onChange={(e) => update("apellidos", aMayusculas(sanitizeLetters(e.target.value, 40)))}
                   />
                   <FieldError message={fieldErrors.apellidos} />
                 </div>
@@ -938,12 +1018,12 @@ export default function App() {
               onChange={(lugar) => update("lugarCompra", lugar)}
               error={fieldErrors.lugarCompra}
             />
+            {avisoPaso ? <p className="aviso-paso">{avisoPaso}</p> : null}
             <div className="step-actions">
               <button
                 type="button"
                 className="btn-primary"
-                disabled={Boolean(fieldErrors.numeroDocumento || fieldErrors.telefono || fieldErrors.email)}
-                onClick={() => goToStep(2)}
+                onClick={() => intentarAvanzar(1, 2)}
               >
                 Siguiente
               </button>
@@ -1008,7 +1088,7 @@ export default function App() {
                 type="text"
                 maxLength={60}
                 value={form.direccion}
-                onChange={(e) => update("direccion", e.target.value)}
+                onChange={(e) => update("direccion", aMayusculas(e.target.value))}
               />
               <FieldError message={fieldErrors["direccion.direccion"]} />
             </div>
@@ -1020,7 +1100,7 @@ export default function App() {
                   type="text"
                   maxLength={10}
                   value={form.numero}
-                  onChange={(e) => update("numero", e.target.value)}
+                  onChange={(e) => update("numero", aMayusculas(e.target.value))}
                 />
                 <FieldError message={fieldErrors["direccion.numero"]} />
               </div>
@@ -1120,19 +1200,20 @@ export default function App() {
                 type="text"
                 maxLength={40}
                 value={form.referencia}
-                onChange={(e) => update("referencia", e.target.value)}
+                onChange={(e) => update("referencia", aMayusculas(e.target.value))}
               />
               <FieldError message={fieldErrors["direccion.referencia"]} />
             </div>
             <div className="field">
               <label htmlFor="piso">Piso / dpto. (opcional)</label>
-              <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", e.target.value)} />
+              <input id="piso" type="text" maxLength={10} value={form.piso} onChange={(e) => update("piso", aMayusculas(e.target.value))} />
             </div>
+            {avisoPaso ? <p className="aviso-paso">{avisoPaso}</p> : null}
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(1)}>
                 Anterior
               </button>
-              <button type="button" className="btn-primary" onClick={() => goToStep(3)}>
+              <button type="button" className="btn-primary" onClick={() => intentarAvanzar(2, 3)}>
                 Siguiente
               </button>
             </div>
@@ -1150,12 +1231,10 @@ export default function App() {
                 <p className="producto-label">{index === 0 ? "Producto principal" : `Producto adicional ${index}`}</p>
                 <ProductoPicker
                   idPrefix={`producto-${index}`}
-                  categoria={producto.categoria}
                   productId={producto.productId}
                   productCodigo={producto.productCodigo}
                   productNombre={producto.productNombre}
                   fotos={producto.fotos}
-                  onCategoriaChange={(categoria) => patchProducto(index, { categoria })}
                   onProductoChange={(productId, productCodigo, productNombre) =>
                     patchProducto(index, { productId, productCodigo, productNombre })
                   }
@@ -1169,7 +1248,7 @@ export default function App() {
                     id={`numeroSerie-${index}`}
                     type="text"
                     value={producto.numeroSerie}
-                    onChange={(e) => patchProducto(index, { numeroSerie: e.target.value })}
+                    onChange={(e) => patchProducto(index, { numeroSerie: aMayusculas(e.target.value) })}
                   />
                   <FieldError message={fieldErrors[`productos.${index}.numeroSerie`]} />
                 </div>
@@ -1186,11 +1265,12 @@ export default function App() {
               </button>
             ) : null}
             <FieldError message={fieldErrors.productos} />
+            {avisoPaso ? <p className="aviso-paso">{avisoPaso}</p> : null}
             <div className="step-actions">
               <button type="button" className="btn-secondary" onClick={() => goToStep(2)}>
                 Anterior
               </button>
-              <button type="button" className="btn-primary" onClick={() => goToStep(4)}>
+              <button type="button" className="btn-primary" onClick={() => intentarAvanzar(3, 4)}>
                 Siguiente
               </button>
             </div>

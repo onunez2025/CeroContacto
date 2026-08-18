@@ -58,9 +58,23 @@ const FOTO_DATA_URL_REGEX = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+
  */
 const FotosSchema = z.array(z.string().regex(FOTO_DATA_URL_REGEX, "Formato de foto invalido")).max(6, "Maximo 6 fotos por producto").optional();
 
+/**
+ * `codigo` y `nombre` son SOLO para mostrarle al cliente lo que registro:
+ * van en el resumen del correo de confirmacion (observacion 24 - Daisy
+ * reporto que el correo llegaba sin los productos). Nunca se envian a C4C:
+ * el ticket y el producto registrado se crean con `productId`.
+ *
+ * Opcionales a proposito: una solicitud enviada por una version anterior del
+ * formulario, o reintentada desde un progreso guardado, no los trae - y eso
+ * no debe invalidar el envio.
+ */
 const ProductoSchema = z.object({
   numeroSerie: z.string().max(120).optional(),
   productId: z.string().min(1, "Modelo de producto requerido").max(60),
+  /** ExternalID de C4C ("3121SOLRD5500V3C"), el codigo que el cliente ve en su boleta. */
+  codigo: z.string().max(60).optional(),
+  /** Descripcion del catalogo ("RAPIDUCHA SOLE PRIME 5500W C/ACCESORIOS"). */
+  nombre: z.string().max(200).optional(),
   fotos: FotosSchema,
 });
 

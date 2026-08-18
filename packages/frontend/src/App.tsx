@@ -192,6 +192,9 @@ function buildSubmission(form: FormState): unknown {
     productos: form.productos.map((p) => ({
       ...(p.numeroSerie.trim() ? { numeroSerie: p.numeroSerie.trim() } : {}),
       productId: p.productId.trim(),
+      // Solo para el resumen del correo; el backend no los manda a C4C.
+      ...(p.productCodigo.trim() ? { codigo: p.productCodigo.trim() } : {}),
+      ...(p.productNombre.trim() ? { nombre: p.productNombre.trim() } : {}),
       ...(p.fotos.length ? { fotos: p.fotos } : {}),
     })),
     fechaVisita: form.fechaVisita,
@@ -246,6 +249,92 @@ const STEPS: StepDef[] = [
   { n: 3, label: "Productos" },
   { n: 4, label: "Fecha" },
 ];
+const MESES_LARGOS = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+/** "2026-08-20" -> "20 de agosto de 2026". */
+function formatFechaLarga(iso: string): string {
+  const [anio, mes, dia] = iso.split("-");
+  const nombreMes = MESES_LARGOS[Number(mes) - 1];
+  if (!anio || !dia || !nombreMes) return iso;
+  return `${Number(dia)} de ${nombreMes} de ${anio}`;
+}
+
+/**
+ * Resumen de lo registrado, en la pantalla de confirmacion (observacion 25).
+ *
+ * Dos campos de la maqueta no se pueden mostrar tal cual: "Categoria de
+ * producto" ya no existe (se elimino en la observacion 2) y "Marca o marcas"
+ * nunca estuvo en el formulario. En su lugar va la lista de productos con su
+ * codigo y descripcion, que es lo que el cliente realmente eligio y lo mismo
+ * que ahora lleva el correo.
+ */
+function ResumenSolicitud({ form }: { form: FormState }) {
+  const nombreCompleto =
+    form.tipoDocumento === "RUC" ? form.razonSocial : `${form.nombres} ${form.apellidos}`.trim();
+  const tipoDocumentoLabel =
+    form.tipoDocumento === "CE" ? "Carné de Extranjería" : form.tipoDocumento;
+  const distrito = PERU_DISTRITOS.find((d) => d.id === form.distrito)?.nombre;
+  const provincia = PERU_PROVINCIAS.find((p) => p.id === form.provincia)?.nombre;
+  const departamento = PERU_DEPARTAMENTOS.find((d) => d.code === form.departamento)?.label;
+  const direccionCompleta = [
+    [form.direccion, form.numero].filter(Boolean).join(" "),
+    distrito,
+    provincia,
+    departamento,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const dato = (etiqueta: string, valor: string) =>
+    valor ? (
+      <div className="resumen__dato">
+        <span className="resumen__etiqueta">{etiqueta}</span>
+        <span className="resumen__valor">{valor}</span>
+      </div>
+    ) : null;
+
+  return (
+    <section className="resumen" aria-label="Resumen de tu solicitud">
+      <h2 className="resumen__titulo">Resumen</h2>
+      <div className="resumen__grilla">
+        {dato("Nombre completo", nombreCompleto)}
+        {dato("Tipo de documento", tipoDocumentoLabel)}
+        {dato("Número del documento", form.numeroDocumento)}
+        {dato("Dirección", direccionCompleta)}
+        {dato("Referencia", form.referencia)}
+        {dato("Tipo de servicio", "Instalación")}
+        {dato("Tienda donde compró", form.lugarCompra)}
+        {dato("Fecha deseada", formatFechaLarga(form.fechaVisita))}
+      </div>
+      <div className="resumen__productos">
+        <span className="resumen__etiqueta">
+          {form.productos.length === 1 ? "Producto registrado" : "Productos registrados"}
+        </span>
+        <ul>
+          {form.productos.map((p, i) => (
+            <li key={`${p.productId}-${i}`}>
+              {p.productCodigo ? `${p.productCodigo} - ${p.productNombre}` : p.productNombre || p.productId}
+              {p.numeroSerie ? ` (serie: ${p.numeroSerie})` : ""}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {form.comentario.trim() ? (
+        <div className="resumen__productos">
+          <span className="resumen__etiqueta">Comentario</span>
+          <p className="resumen__valor">{form.comentario.trim()}</p>
+        </div>
+      ) : null}
+      <p className="resumen__pie">
+        Estamos procesando su solicitud, y máximo en 24 horas le llegará un WhatsApp (01-6190500)
+        confirmando la fecha de atención.
+      </p>
+    </section>
+  );
+}
+
 /**
  * Retroceder es libre; saltar hacia ADELANTE desde la barra de pasos se
  * bloquea: avanzar es siempre por el boton Siguiente, que valida el paso
@@ -807,25 +896,14 @@ export default function App() {
         <div className="card__inner result-card">
           {result.status === "Completed" && (
             <>
-              <h1>¡Listo! Tu solicitud fue registrada</h1>
-              {result.ticketIds.length === 1 ? (
-                <p>
-                  Número de ticket: <strong>{result.ticketIds[0]}</strong>
+              <div className="registro-exitoso">
+                <h1>Registro exitoso</h1>
+                <p className="registro-exitoso__ticket">
+                  {result.ticketIds.length === 1 ? "Número de ticket: " : "Números de ticket: "}
+                  <strong>{result.ticketIds.join(", ")}</strong>
                 </p>
-              ) : (
-                <>
-                  <p>Se generó un ticket por cada producto:</p>
-                  <ul className="ticket-list">
-                    {result.ticketIds.map((id) => (
-                      <li key={id}>
-                        <strong>{id}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <p className="muted">Nos pondremos en contacto contigo para confirmar la fecha de instalación.</p>
-              <p className="muted">Un asesor te contactará por WhatsApp o email en las próximas horas para confirmar la fecha y el técnico asignado.</p>
+              </div>
+              <ResumenSolicitud form={form} />
             </>
           )}
           {result.status === "Partial" && (
@@ -883,7 +961,7 @@ export default function App() {
               setStep(1);
             }}
           >
-            Volver al formulario
+            Regresar
           </button>
         </div>
         </div>

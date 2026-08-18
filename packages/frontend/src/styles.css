@@ -484,6 +484,98 @@ select:disabled {
   background: var(--color-primary-hover);
 }
 
+/* Pantalla de confirmacion con resumen (observacion 25). */
+.registro-exitoso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.registro-exitoso h1 {
+  color: var(--color-primary);
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  margin: 0;
+}
+
+.registro-exitoso__ticket {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border: 2px solid var(--color-text);
+  border-radius: var(--radius-control);
+  font-size: 0.95rem;
+}
+
+.resumen {
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 18px;
+  padding: 1.4rem 1.5rem;
+  text-align: left;
+}
+
+.resumen__titulo {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  padding-bottom: 0.9rem;
+}
+
+/* Dos columnas en escritorio, una sola en celular: los valores largos
+   (direccion completa, nombre de tienda) no entran en media columna de 375px. */
+.resumen__grilla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem 1.2rem;
+}
+
+@media (max-width: 560px) {
+  .resumen__grilla {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resumen__etiqueta {
+  display: block;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 0.15rem;
+}
+
+.resumen__valor {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.resumen__productos {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.resumen__productos ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.resumen__productos li + li {
+  margin-top: 0.35rem;
+}
+
+.resumen__pie {
+  margin: 1rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .result-card {
   text-align: center;
   padding-top: 4rem;

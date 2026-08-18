@@ -145,6 +145,35 @@ const AZUL = "#3d4f6b";
 const ROJO = "#c1121f";
 
 /** Una fila de dos columnas del recuadro de resumen. */
+/**
+ * Fila de ancho completo, para contenido que no entra en media columna
+ * (lista de productos, comentario del cliente).
+ */
+function filaAncha(etiqueta: string, contenidoHtml: string): string {
+  return `<tr><td colspan="2" style="padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a">
+       <strong style="display:block;color:${AZUL}">${escapeHtml(etiqueta)}</strong>${contenidoHtml}
+     </td></tr>`;
+}
+
+/**
+ * Productos registrados, uno por linea como "codigo - descripcion".
+ *
+ * Daisy reporto que el correo llegaba sin los productos (observacion 24). Se
+ * usan `codigo` y `nombre` que ahora viajan en el DTO solo para esto: el
+ * `productId` es un correlativo interno ("10018698") que no le dice nada al
+ * cliente. Si una solicitud vieja no los trae, se cae al productId antes que
+ * dejar la fila vacia.
+ */
+function listaDeProductos(submission: ServiceRequestSubmission): string {
+  return submission.productos
+    .map((p) => {
+      const etiqueta = p.codigo && p.nombre ? `${p.codigo} - ${p.nombre}` : (p.nombre ?? p.codigo ?? p.productId);
+      const serie = p.numeroSerie ? ` (serie: ${p.numeroSerie})` : "";
+      return `<div style="padding:2px 0">${escapeHtml(etiqueta + serie)}</div>`;
+    })
+    .join("");
+}
+
 function filaResumen(izq: [string, string], der?: [string, string]): string {
   const celda = ([etiqueta, valor]: [string, string]) =>
     `<td style="padding:10px 14px;vertical-align:top;width:50%;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a">
@@ -218,6 +247,8 @@ function buildHtml(input: TicketConfirmationInput): string {
       ${filaResumen(["Direccion:", direccion], ["Referencia:", submission.direccion.referencia])}
       ${filaResumen(["Tipo de servicio:", "Instalacion"], ["Tienda donde compro:", submission.lugarCompra])}
       ${filaResumen(["Fecha deseada:", fecha])}
+      ${filaAncha(submission.productos.length === 1 ? "Producto registrado:" : "Productos registrados:", listaDeProductos(submission))}
+      ${submission.comentario?.trim() ? filaAncha("Comentario:", escapeHtml(submission.comentario.trim())) : ""}
       ${ticketsFila}
       ${faltantes}
     </table>

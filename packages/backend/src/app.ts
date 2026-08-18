@@ -8,6 +8,31 @@ import { PRODUCT_CATEGORIES, searchProducts } from "./domain/productCatalog/inde
 import { handleSubmitServiceRequest } from "./handlers/submitServiceRequest.js";
 import { createRateLimiter } from "./infra/rateLimiter.js";
 
+/**
+ * Dias minimos de anticipacion de la fecha de visita.
+ *
+ * C4C rechaza los tickets con muy poca anticipacion ("Para el concepto de
+ * servicio seleccionado no se puede generar un ticket hoy"), pero el
+ * calendario ofrecia igual el dia siguiente: el cliente elegia una fecha que
+ * la propia plataforma le mostraba, esperaba ~30s y recibia un error que no
+ * entiende. Confirmado el 2026-08-18 contra produccion - de 12 envios, los 2
+ * con 1 dia de anticipacion fallaron y los 9 con 3 dias o mas se crearon.
+ *
+ * El 3 es lo que se INFIERE de esos datos, no un numero que C4C haya
+ * confirmado: con solo 2 casos fallidos no se distingue si el minimo real es
+ * 2 o 3, ni si cambia por tipo de servicio. Por eso es una variable de
+ * entorno y no una constante: cuando C4C responda se ajusta sin desplegar
+ * codigo. La consulta esta pendiente junto con la del servicio cupoporarea.
+ *
+ * A proposito NO se valida tambien al enviar: si el minimo real resultara ser
+ * 2, un chequeo con 3 rechazaria solicitudes que C4C si acepta. Acotar lo que
+ * el calendario ofrece basta para el problema real y no puede romper nada.
+ */
+function diasMinimosDeAnticipacion(): number {
+  const crudo = Number(process.env.FECHA_VISITA_MIN_DIAS);
+  return Number.isInteger(crudo) && crudo >= 0 ? crudo : 3;
+}
+
 export function createApp(): Express {
   const app = express();
   app.use(cors());
@@ -130,7 +155,7 @@ export function createApp(): Express {
     }
 
     const desde = new Date();
-    desde.setUTCDate(desde.getUTCDate() + 1);
+    desde.setUTCDate(desde.getUTCDate() + diasMinimosDeAnticipacion());
     const hasta = new Date(desde);
     hasta.setUTCDate(hasta.getUTCDate() + 41);
 

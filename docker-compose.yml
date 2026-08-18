@@ -31,6 +31,9 @@ services:
       # "production" (en ingles) es la clave que espera ENV_FILES en env.ts;
       # con cualquier otro valor cae al default ".env.local".
       APP_ENV: ${APP_ENV:-production}
+      # Dias minimos de anticipacion de la fecha de visita. Ver la nota en
+      # app.ts: el 3 es inferido de produccion, no confirmado por C4C.
+      FECHA_VISITA_MIN_DIAS: ${FECHA_VISITA_MIN_DIAS:-3}
 
   frontend:
     build:

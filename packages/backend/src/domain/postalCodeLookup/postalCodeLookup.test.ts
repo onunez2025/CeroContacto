@@ -24,6 +24,34 @@ beforeEach(() => {
 });
 
 describe("searchPostalCodes", () => {
+  /**
+   * El cliente que tiene el codigo a mano (de una compra anterior, de su
+   * recibo) escribia "15064" y no obtenia nada: solo se buscaba por nombre de
+   * distrito. Mismo criterio que el buscador de productos, que acepta
+   * descripcion o codigo.
+   */
+  it("encuentra por codigo postal, no solo por nombre de distrito", async () => {
+    const client = clientReturning([
+      { zIDDistrito: "CHORRILLOS", zPostalCodigo: "15064" },
+      { zIDDistrito: "SAN BORJA", zPostalCodigo: "15130" },
+    ]);
+
+    const result = await searchPostalCodes("15", "15064", client);
+
+    expect(result.resultados).toEqual([{ distrito: "CHORRILLOS", codigoPostal: "15064" }]);
+  });
+
+  it("sigue encontrando por nombre de distrito", async () => {
+    const client = clientReturning([
+      { zIDDistrito: "CHORRILLOS", zPostalCodigo: "15064" },
+      { zIDDistrito: "SAN BORJA", zPostalCodigo: "15130" },
+    ]);
+
+    const result = await searchPostalCodes("15", "chorri", client);
+
+    expect(result.resultados).toEqual([{ distrito: "CHORRILLOS", codigoPostal: "15064" }]);
+  });
+
   it("devuelve resultados vacios si no hay departamento", async () => {
     const client = clientReturning([{ zIDDistrito: "SAN BORJA", zPostalCodigo: "15130" }]);
     const result = await searchPostalCodes("", "san borja", client);

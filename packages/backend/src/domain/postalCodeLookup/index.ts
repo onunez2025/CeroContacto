@@ -58,8 +58,8 @@ async function getActiveRecords(departamento: string, client: IC4CODataClient): 
 
 /**
  * Busca zonas de cobertura de servicio ACTIVAS de SOLE por coincidencia
- * parcial de nombre de distrito/zona, dentro de un departamento.
- * regionxdepartamento NO es un catalogo generico de UBIGEO de Peru - es
+ * parcial de nombre de distrito/zona O de codigo postal, dentro de un
+ * departamento.
  * la misma tabla que usa C4C para la regla de negocio "region activa
  * para el codigo postal" al crear un ticket (confirmado en vivo contra
  * produccion, 2026-07-30).
@@ -89,7 +89,13 @@ export async function searchPostalCodes(
   const results = await getActiveRecords(departamento, client);
 
   const needle = trimmed.toLowerCase();
-  const matched = results.filter((r) => r.zIDDistrito.toLowerCase().includes(needle));
+  // Coincide por nombre de distrito O por codigo postal: un cliente que tiene
+  // el codigo a mano (de una compra anterior, de su recibo) escribia "15064" y
+  // no obtenia nada, porque solo se buscaba por nombre. Mismo criterio que el
+  // buscador de productos, que acepta descripcion o codigo.
+  const matched = results.filter(
+    (r) => r.zIDDistrito.toLowerCase().includes(needle) || r.zPostalCodigo.toLowerCase().includes(needle),
+  );
 
   const vistos = new Set<string>();
   const deduplicados: PostalCodeMatch[] = [];

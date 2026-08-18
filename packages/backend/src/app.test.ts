@@ -175,6 +175,40 @@ describe("createApp", () => {
     expect((await request(app).post("/api/service-requests").send(validBody)).status).toBe(201);
   });
 
+  /**
+   * C4C rechaza los tickets con muy poca anticipacion, pero el calendario
+   * ofrecia igual el dia siguiente: el cliente elegia una fecha que la propia
+   * plataforma le mostraba y recibia un error tras ~30s de espera. Confirmado
+   * en produccion el 2026-08-18 (los 2 envios con 1 dia fallaron, los 9 con 3
+   * o mas se crearon).
+   */
+  it("el calendario arranca a los dias minimos de anticipacion, no manana", async () => {
+    mockGetFechasDisponibles.mockResolvedValue([]);
+
+    await request(createApp()).get("/api/fechas-disponibles?departamento=15&codigoPostal=07021");
+
+    const [{ desde }] = mockGetFechasDisponibles.mock.calls[0] as [{ desde: string }];
+    const hoy = new Date();
+    const diasDeDiferencia = Math.round(
+      (new Date(`${desde}T00:00:00Z`).getTime() - Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())) / 86_400_000,
+    );
+    expect(diasDeDiferencia).toBe(3);
+  });
+
+  it("los dias de anticipacion se pueden ajustar por entorno sin desplegar codigo", async () => {
+    process.env.FECHA_VISITA_MIN_DIAS = "5";
+    mockGetFechasDisponibles.mockResolvedValue([]);
+
+    await request(createApp()).get("/api/fechas-disponibles?departamento=15&codigoPostal=07021");
+
+    const [{ desde }] = mockGetFechasDisponibles.mock.calls[0] as [{ desde: string }];
+    const hoy = new Date();
+    const diasDeDiferencia = Math.round(
+      (new Date(`${desde}T00:00:00Z`).getTime() - Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())) / 86_400_000,
+    );
+    expect(diasDeDiferencia).toBe(5);
+  });
+
   it("GET /api/fechas-disponibles devuelve las fechas del motor de cupos", async () => {
     mockGetFechasDisponibles.mockResolvedValue(["2026-08-03", "2026-08-05"]);
 

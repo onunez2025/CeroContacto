@@ -25,7 +25,37 @@ export function diffContactFields(actual: ContactFields, entrante: ContactFields
     if ((actual[campo] ?? "").trim() === nuevo) continue;
     cambios[campo] = nuevo;
   }
-  return cambios;
+  return limpiarDuplicados(actual, entrante, cambios);
+}
+
+/**
+ * Vacia un campo que quedaria con el MISMO numero que otro.
+ *
+ * Hace falta por el cambio de mapeo del 2026-08-18 (observacion 26): hasta
+ * entonces el telefono principal se escribia en `Phone`, y ahora va en
+ * `Mobile`. Un cliente que ya existia tiene su numero en `Phone`; al volver a
+ * enviar el formulario sin segundo telefono, `Mobile` recibe el numero y
+ * `Phone` conserva el viejo - el mismo numero apareceria en "Celular 1" y en
+ * "Celular 2".
+ *
+ * Solo se vacia cuando el valor entrante para ese campo esta VACIO y su valor
+ * guardado coincide con otro que si se esta escribiendo. Si el cliente
+ * declaro dos telefonos distintos, ninguno se toca; y la regla general de
+ * "un entrante vacio no pisa lo que ya habia" se mantiene para todo lo demas.
+ */
+function limpiarDuplicados(
+  actual: ContactFields,
+  entrante: ContactFields,
+  cambios: ContactFields,
+): ContactFields {
+  const escritos = new Set(Object.values(cambios).map((v) => v.trim()));
+  const resultado = { ...cambios };
+  for (const [campo, valorEntrante] of Object.entries(entrante)) {
+    if (valorEntrante.trim()) continue;
+    const guardado = (actual[campo] ?? "").trim();
+    if (guardado && escritos.has(guardado)) resultado[campo] = "";
+  }
+  return resultado;
 }
 
 /**

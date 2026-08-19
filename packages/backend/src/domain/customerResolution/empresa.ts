@@ -58,8 +58,14 @@ async function resolveExistingEmpresa(
     },
     {
       Name: input.razonSocial,
-      Phone: input.telefono,
-      Mobile: input.telefono2 ?? "",
+      // Los telefonos van CRUZADOS respecto a lo que sugiere el nombre del
+      // campo: en la pantalla de C4C, `Mobile` se muestra como "Celular 1" y
+      // `Phone` como "Celular 2" (confirmado el 2026-08-18 comparando el
+      // ticket 886671 contra los valores reales del cliente 1306546). La
+      // linea 1 del formulario es el telefono principal, asi que va a
+      // Celular 1 = Mobile. Antes iba a Phone y aparecia en Celular 2.
+      Mobile: input.telefono,
+      Phone: input.telefono2 ?? "",
       Email: input.email,
     },
     client,
@@ -104,8 +110,14 @@ async function createEmpresa(input: EmpresaInput, client: IC4CODataClient): Prom
   const created = await client.postEntity<CorporateAccount>(`${NS}/CorporateAccountCollection`, {
     RoleCode: "CRM000",
     Name: input.razonSocial,
-    Phone: input.telefono,
-    Mobile: input.telefono2 ?? "",
+    // Los telefonos van CRUZADOS respecto a lo que sugiere el nombre del
+    // campo: en la pantalla de C4C, `Mobile` se muestra como "Celular 1" y
+    // `Phone` como "Celular 2" (confirmado el 2026-08-18 comparando el
+    // ticket 886671 contra los valores reales del cliente 1306546). La
+    // linea 1 del formulario es el telefono principal, asi que va a
+    // Celular 1 = Mobile. Antes iba a Phone y aparecia en Celular 2.
+    Mobile: input.telefono,
+    Phone: input.telefono2 ?? "",
     Email: input.email,
     LanguageCode: "ES",
     SalesSupportBlockingIndicator: false,

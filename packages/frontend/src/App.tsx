@@ -659,7 +659,19 @@ export default function App() {
     // handlePostalQueryChange, que descarta respuestas cuyo id ya no coincide.
     if (postalDebounceRef.current) clearTimeout(postalDebounceRef.current);
     postalRequestIdRef.current += 1;
-    setForm((prev) => ({ ...prev, departamento: value, provincia: "", distrito: "", codigoPostal: "" }));
+    // Tambien se descarta el punto del mapa: quedaria en el departamento
+    // anterior y el formulario lo tomaria como ubicacion valida, mandando al
+    // tecnico a otra region. Al limpiarlo, el mapa se recentra solo sobre el
+    // departamento nuevo (ver el efecto de UbicacionPicker).
+    setForm((prev) => ({
+      ...prev,
+      departamento: value,
+      provincia: "",
+      distrito: "",
+      codigoPostal: "",
+      latitud: undefined,
+      longitud: undefined,
+    }));
     setPostalQuery("");
     setPostalResults([]);
     setPostalHasMore(false);
@@ -1298,6 +1310,7 @@ export default function App() {
             <UbicacionPicker
               latitud={form.latitud}
               longitud={form.longitud}
+              departamento={form.departamento}
               onChange={(latitud, longitud) => setForm((prev) => ({ ...prev, latitud, longitud }))}
               error={fieldErrors["direccion.latitud"] ?? fieldErrors["direccion.longitud"]}
             />

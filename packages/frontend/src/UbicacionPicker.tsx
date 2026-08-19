@@ -2,12 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { FieldError } from "./FieldError.js";
-
-/**
- * Centro por defecto: Plaza de Armas de Lima. Solo se usa cuando el cliente
- * no da permiso de ubicacion y no hay un punto elegido todavia.
- */
-const CENTRO_POR_DEFECTO: [number, number] = [-12.0464, -77.0428];
+import { vistaInicial, ZOOM_PUNTO_MARCADO } from "./centrosDepartamento.js";
 
 /**
  * Servidor de tiles. Por defecto OpenStreetMap, que no pide clave ni cuenta -
@@ -35,6 +30,11 @@ const ICONO_PIN = L.divIcon({
 interface UbicacionPickerProps {
   latitud?: number;
   longitud?: number;
+  /**
+   * Departamento ya elegido en el paso, para abrir el mapa sobre esa zona.
+   * Solo afecta la vista inicial: la ubicacion enviada sale siempre del pin.
+   */
+  departamento?: string;
   onChange: (latitud: number, longitud: number) => void;
   error?: string;
 }
@@ -52,7 +52,7 @@ interface UbicacionPickerProps {
  * es lo que alimenta el motor de cupos y la cobertura. El mapa solo agrega la
  * precision que el texto no da.
  */
-export function UbicacionPicker({ latitud, longitud, onChange, error }: UbicacionPickerProps) {
+export function UbicacionPicker({ latitud, longitud, departamento, onChange, error }: UbicacionPickerProps) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<L.Map | null>(null);
   const marcadorRef = useRef<L.Marker | null>(null);
@@ -69,13 +69,22 @@ export function UbicacionPicker({ latitud, longitud, onChange, error }: Ubicacio
   useEffect(() => {
     if (!contenedorRef.current || mapaRef.current) return;
 
-    const inicio: [number, number] =
-      latitud !== undefined && longitud !== undefined ? [latitud, longitud] : CENTRO_POR_DEFECTO;
+    // Un punto ya marcado (progreso restaurado) manda sobre el departamento.
+    const vista = vistaInicial(departamento);
+    const hayPunto = latitud !== undefined && longitud !== undefined;
+    const inicio: [number, number] = hayPunto ? [latitud, longitud] : vista.centro;
 
-    const mapa = L.map(contenedorRef.current, { center: inicio, zoom: latitud !== undefined ? 17 : 12 });
+    const mapa = L.map(contenedorRef.current, {
+      center: inicio,
+      zoom: hayPunto ? ZOOM_PUNTO_MARCADO : vista.zoom,
+    });
     L.tileLayer(TILES_URL, { attribution: TILES_ATRIBUCION, maxZoom: 19 }).addTo(mapa);
 
-    const marcador = L.marker(inicio, { draggable: true, icon: ICONO_PIN }).addTo(mapa);
+    // El pin NO se muestra hasta que el cliente marque su punto: un pin visible
+    // en el centro del departamento se lee como "ya esta elegido", justo cuando
+    // el formulario dice que todavia no y no deja avanzar.
+    const marcador = L.marker(inicio, { draggable: true, icon: ICONO_PIN });
+    if (hayPunto) marcador.addTo(mapa);
     marcador.on("dragend", () => {
       const { lat, lng } = marcador.getLatLng();
       onChangeRef.current(lat, lng);
@@ -83,7 +92,7 @@ export function UbicacionPicker({ latitud, longitud, onChange, error }: Ubicacio
     // Tocar el mapa tambien mueve el pin: en celular arrastrar un pin chico
     // es incomodo, y tocar donde uno vive es el gesto natural.
     mapa.on("click", (e: L.LeafletMouseEvent) => {
-      marcador.setLatLng(e.latlng);
+      marcador.setLatLng(e.latlng).addTo(mapa);
       onChangeRef.current(e.latlng.lat, e.latlng.lng);
     });
 
@@ -99,12 +108,30 @@ export function UbicacionPicker({ latitud, longitud, onChange, error }: Ubicacio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Mantiene el pin alineado si el valor cambia desde afuera (progreso
-  // restaurado de localStorage, o el boton de "usar mi ubicacion").
+  /**
+   * Sincroniza el pin con el valor de afuera, en las dos direcciones:
+   *
+   * - Con punto (progreso restaurado, o "usar mi ubicacion"): lo coloca y lo
+   *   muestra.
+   * - Sin punto (recien entra, o cambio de departamento y se descarto el
+   *   anterior): lo oculta y recentra la vista sobre el departamento elegido.
+   *   Recentrar solo cuando NO hay punto es deliberado: mover el mapa despues
+   *   de que el cliente puso el pin le haria perder de vista lo que eligio.
+   */
   useEffect(() => {
-    if (latitud === undefined || longitud === undefined) return;
-    marcadorRef.current?.setLatLng([latitud, longitud]);
-  }, [latitud, longitud]);
+    const mapa = mapaRef.current;
+    const marcador = marcadorRef.current;
+    if (!mapa || !marcador) return;
+
+    if (latitud !== undefined && longitud !== undefined) {
+      marcador.setLatLng([latitud, longitud]).addTo(mapa);
+      return;
+    }
+
+    marcador.remove();
+    const vista = vistaInicial(departamento);
+    mapa.setView(vista.centro, vista.zoom);
+  }, [departamento, latitud, longitud]);
 
   function usarMiUbicacion() {
     if (!navigator.geolocation) {
